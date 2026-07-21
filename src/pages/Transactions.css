@@ -1,0 +1,5 @@
+.mono {
+  font-size: 13px;
+  color: var(--accent-text);
+  font-weight: 600;
+}

@@ -1,0 +1,78 @@
+create table if not exists public.users (
+  id bigint generated always as identity primary key,
+  name text not null,
+  email text,
+  phone text,
+  joined date not null default current_date,
+  orders integer not null default 0,
+  spent numeric not null default 0,
+  status text not null default 'Active',
+  created_at timestamptz not null default now()
+);
+
+alter table public.users enable row level security;
+
+drop policy if exists "Public can read users" on public.users;
+create policy "Public can read users"
+  on public.users for select
+  using (true);
+
+drop policy if exists "Public can insert users" on public.users;
+create policy "Public can insert users"
+  on public.users for insert
+  with check (true);
+
+drop policy if exists "Public can update users" on public.users;
+create policy "Public can update users"
+  on public.users for update
+  using (true)
+  with check (true);
+
+create table if not exists public.transactions (
+  id bigint generated always as identity primary key,
+  customer text not null,
+  email text,
+  item text not null,
+  amount numeric not null default 0,
+  method text,
+  status text not null default 'Completed',
+  created_at timestamptz not null default now()
+);
+
+alter table public.transactions enable row level security;
+
+drop policy if exists "Public can read transactions" on public.transactions;
+create policy "Public can read transactions"
+  on public.transactions for select
+  using (true);
+
+drop policy if exists "Public can insert transactions" on public.transactions;
+create policy "Public can insert transactions"
+  on public.transactions for insert
+  with check (true);
+
+drop policy if exists "Public can update transactions" on public.transactions;
+create policy "Public can update transactions"
+  on public.transactions for update
+  using (true)
+  with check (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'users'
+  ) then
+    alter publication supabase_realtime add table public.users;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'transactions'
+  ) then
+    alter publication supabase_realtime add table public.transactions;
+  end if;
+end $$;

@@ -1,0 +1,22 @@
+.row-more {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+
+.row-more:hover {
+  border-color: var(--border);
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+
+.empty-row {
+  text-align: center;
+  color: var(--muted);
+  padding: 32px 14px !important;
+}

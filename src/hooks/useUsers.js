@@ -1,0 +1,11 @@
+import { useRealtimeTable } from './useRealtimeTable.js'
+
+// Expects a `users` table: id, name, email, phone, joined, orders, spent, status, created_at.
+export function useUsers() {
+  const { rows, loading, error, mutate } = useRealtimeTable('users', {
+    orderBy: 'created_at',
+    ascending: false,
+  })
+
+  return { users: rows, loading, error, mutate }
+}
