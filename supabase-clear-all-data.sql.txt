@@ -1,0 +1,17 @@
+-- Wipes ALL rows from every application table (test data only — confirmed
+-- with the user before writing this). Does NOT change schema/columns/RLS
+-- policies, only data. RESTART IDENTITY resets id sequences back to 1 so
+-- freshly created rows after this start at #1 again.
+--
+-- THIS IS IRREVERSIBLE. Run only if you're certain there's nothing in here
+-- you need to keep.
+
+truncate table
+  public.notifications,
+  public.transactions,
+  public.order_trials,
+  public.order_items,
+  public.orders,
+  public.staff,
+  public.users
+restart identity cascade;

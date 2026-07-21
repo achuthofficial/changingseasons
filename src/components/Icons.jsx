@@ -186,3 +186,45 @@ export const IconMoon = (p) => (
     <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" />
   </Svg>
 )
+
+export const IconEdit = (p) => (
+  <Svg {...p}>
+    <path d="M15.5 4.5l4 4L8 20H4v-4z" />
+    <path d="M13.5 6.5l4 4" />
+  </Svg>
+)
+
+export const IconTrash = (p) => (
+  <Svg {...p}>
+    <path d="M4 7h16" />
+    <path d="M9 7V4.5h6V7" />
+    <path d="M6.5 7 7.3 20a1.5 1.5 0 0 0 1.5 1.4h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7" />
+    <path d="M10.2 11v6.5" />
+    <path d="M13.8 11v6.5" />
+  </Svg>
+)
+
+export const IconCalendar = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="16" rx="2.2" />
+    <path d="M3 10h18" />
+    <path d="M8 3v4" />
+    <path d="M16 3v4" />
+  </Svg>
+)
+
+export const IconImage = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="4.5" width="18" height="15" rx="2.2" />
+    <circle cx="9" cy="10" r="1.8" />
+    <path d="m4 18 5.5-5.5a2 2 0 0 1 2.8 0L20 20.5" />
+  </Svg>
+)
+
+export const IconStaff = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="8" r="3.4" />
+    <path d="M5 20c0-3.6 3-6.2 7-6.2s7 2.6 7 6.2" />
+    <path d="M9.5 8h5" />
+  </Svg>
+)

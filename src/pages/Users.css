@@ -1,22 +1,26 @@
-.row-more {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-}
-
-.row-more:hover {
-  border-color: var(--border);
-  background: var(--accent-bg);
-  color: var(--accent-text);
-}
-
 .empty-row {
   text-align: center;
   color: var(--muted);
   padding: 32px 14px !important;
+}
+
+.mono {
+  font-size: 13px;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.cell-user-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.cell-user-link:hover .cell-user-name {
+  color: var(--accent-text);
 }

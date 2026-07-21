@@ -1,28 +1,95 @@
-import { useMemo, useState } from 'react'
-import Badge from '../components/Badge.jsx'
-import AddCustomerModal from '../components/AddCustomerModal.jsx'
-import { IconSearch, IconUserPlus, IconMore } from '../components/Icons.jsx'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import CustomerModal from '../components/CustomerModal.jsx'
+import OrderModal from '../components/OrderModal.jsx'
+import CustomerDetailModal from '../components/CustomerDetailModal.jsx'
+import RowMenu from '../components/RowMenu.jsx'
+import { IconSearch, IconBag } from '../components/Icons.jsx'
 import { useUsers } from '../hooks/useUsers.js'
-import { formatINR } from '../utils/format.js'
+import { useOrders } from '../hooks/useOrders.js'
+import { useTransactions } from '../hooks/useTransactions.js'
+import { supabase } from '../lib/supabaseClient.js'
+import { formatCustomerId, formatINR } from '../utils/format.js'
 import './Users.css'
 
-const tabs = ['All', 'Active', 'VIP', 'Inactive']
-
 export default function Users() {
-  const { users } = useUsers()
+  const { users, mutate } = useUsers()
+  const { orders } = useOrders()
+  const { transactions } = useTransactions()
   const [query, setQuery] = useState('')
-  const [tab, setTab] = useState('All')
-  const [modalOpen, setModalOpen] = useState(false)
+  const [modalCustomer, setModalCustomer] = useState(undefined)
+  const [orderModalOpen, setOrderModalOpen] = useState(false)
+  const [orderModalCustomer, setOrderModalCustomer] = useState(null)
+  const [viewingCustomerId, setViewingCustomerId] = useState(null)
+  const viewingCustomer = users.find((u) => u.id === viewingCustomerId) ?? null
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const openId = searchParams.get('openCustomer')
+    if (!openId) return
+    // Syncing local state from the URL (an external source), same
+    // fetch-in-effect shape as useRealtimeTable — this lint rule over-flags it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setViewingCustomerId(Number(openId))
+    setSearchParams(
+      (prev) => {
+        prev.delete('openCustomer')
+        return prev
+      },
+      { replace: true },
+    )
+  }, [searchParams, setSearchParams])
+
+  function openNewOrder(customer = null) {
+    setOrderModalCustomer(customer)
+    setOrderModalOpen(true)
+  }
+
+  // "Orders" and "Total Spent" are derived live from real orders/payments,
+  // not a stored field on the customer — a stored count/total would drift
+  // out of sync the moment an order or payment happened without someone
+  // manually updating it (same class of bug as orders.advance_paid before).
+  const orderCustomerMap = useMemo(() => new Map(orders.map((o) => [o.id, o.customer_id])), [orders])
+
+  const orderCountByCustomer = useMemo(() => {
+    const map = new Map()
+    for (const o of orders) map.set(o.customer_id, (map.get(o.customer_id) ?? 0) + 1)
+    return map
+  }, [orders])
+
+  const spentByCustomer = useMemo(() => {
+    const map = new Map()
+    for (const t of transactions) {
+      if (t.status !== 'Completed' || !t.order_id) continue
+      const customerId = orderCustomerMap.get(t.order_id)
+      if (customerId == null) continue
+      map.set(customerId, (map.get(customerId) ?? 0) + Number(t.amount))
+    }
+    return map
+  }, [transactions, orderCustomerMap])
 
   const filtered = useMemo(() => {
     return users.filter((u) => {
-      const matchesTab = tab === 'All' || u.status === tab
       const q = query.trim().toLowerCase()
-      const matchesQuery =
-        !q || u.name.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q)
-      return matchesTab && matchesQuery
+      return (
+        !q ||
+        u.name.toLowerCase().includes(q) ||
+        (u.email ?? '').toLowerCase().includes(q) ||
+        (u.phone ?? '').toLowerCase().includes(q) ||
+        String(u.id) === q
+      )
     })
-  }, [users, query, tab])
+  }, [users, query])
+
+  async function handleDelete(u) {
+    const orderCount = orders.filter((o) => o.customer_id === u.id).length
+    const warning = orderCount > 0 ? ` This will also delete their ${orderCount} order(s).` : ''
+    const ok = window.confirm(`Delete customer ${u.name}?${warning} This cannot be undone.`)
+    if (!ok) return
+    mutate((current) => current.filter((c) => c.id !== u.id))
+    const { error } = await supabase.from('users').delete().eq('id', u.id)
+    if (error) window.alert(`Failed to delete customer: ${error.message}`)
+  }
 
   return (
     <div>
@@ -30,9 +97,9 @@ export default function Users() {
         <div className="page-header-copy">
           <h2>{users.length} total customers registered to the boutique</h2>
         </div>
-        <button className="btn btn-primary" onClick={() => setModalOpen(true)}>
-          <IconUserPlus size={16} />
-          Add Customer
+        <button className="btn btn-primary" onClick={() => openNewOrder()}>
+          <IconBag size={16} />
+          New Order
         </button>
       </div>
 
@@ -42,58 +109,51 @@ export default function Users() {
             <IconSearch size={16} />
             <input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Search by name, phone, or customer ID..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
-          <div className="pill-tabs">
-            {tabs.map((t) => (
-              <button
-                key={t}
-                className={`pill-tab ${tab === t ? 'is-active' : ''}`}
-                onClick={() => setTab(t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
+                <th>ID</th>
                 <th>Customer</th>
                 <th>Phone</th>
                 <th>Joined</th>
                 <th>Orders</th>
                 <th>Total Spent</th>
-                <th>Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((u) => (
                 <tr key={u.id}>
+                  <td className="mono">{formatCustomerId(u.id)}</td>
                   <td>
-                    <div className="cell-user">
+                    <button type="button" className="cell-user cell-user-link" onClick={() => setViewingCustomerId(u.id)}>
                       <span className="cell-avatar">{u.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}</span>
                       <div>
                         <p className="cell-user-name">{u.name}</p>
                         <p className="cell-user-sub">{u.email}</p>
                       </div>
-                    </div>
+                    </button>
                   </td>
                   <td>{u.phone}</td>
                   <td>{u.joined}</td>
-                  <td>{u.orders}</td>
-                  <td className="cell-amount">{formatINR(u.spent)}</td>
-                  <td><Badge status={u.status} /></td>
+                  <td>{orderCountByCustomer.get(u.id) ?? 0}</td>
+                  <td className="cell-amount">{formatINR(spentByCustomer.get(u.id) ?? 0)}</td>
                   <td>
-                    <button className="row-more" aria-label="More options">
-                      <IconMore size={16} />
-                    </button>
+                    <RowMenu
+                      actions={[
+                        { label: 'Edit', onClick: () => setModalCustomer(u) },
+                        { label: 'New Order', onClick: () => openNewOrder(u) },
+                        { label: 'Delete', danger: true, onClick: () => handleDelete(u) },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -109,7 +169,20 @@ export default function Users() {
         </div>
       </section>
 
-      {modalOpen && <AddCustomerModal onClose={() => setModalOpen(false)} />}
+      {modalCustomer !== undefined && (
+        <CustomerModal customer={modalCustomer} onClose={() => setModalCustomer(undefined)} />
+      )}
+
+      {orderModalOpen && (
+        <OrderModal
+          initialCustomer={orderModalCustomer ?? undefined}
+          onClose={() => setOrderModalOpen(false)}
+        />
+      )}
+
+      {viewingCustomer && (
+        <CustomerDetailModal customer={viewingCustomer} onClose={() => setViewingCustomerId(null)} />
+      )}
     </div>
   )
 }

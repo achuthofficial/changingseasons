@@ -1,0 +1,175 @@
+-- Staff, Orders, and Order Trials schema, plus missing delete policies on
+-- the existing users/transactions tables and a Storage bucket for design
+-- reference photos. Run this in the Supabase SQL editor after
+-- supabase-users-transactions.sql.txt.
+
+create table if not exists public.staff (
+  id bigint generated always as identity primary key,
+  name text not null,
+  phone text,
+  role text,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.staff enable row level security;
+
+drop policy if exists "Public can read staff" on public.staff;
+create policy "Public can read staff"
+  on public.staff for select
+  using (true);
+
+drop policy if exists "Public can insert staff" on public.staff;
+create policy "Public can insert staff"
+  on public.staff for insert
+  with check (true);
+
+drop policy if exists "Public can update staff" on public.staff;
+create policy "Public can update staff"
+  on public.staff for update
+  using (true)
+  with check (true);
+
+drop policy if exists "Public can delete staff" on public.staff;
+create policy "Public can delete staff"
+  on public.staff for delete
+  using (true);
+
+create table if not exists public.orders (
+  id bigint generated always as identity primary key,
+  customer_id bigint not null references public.users(id) on delete cascade,
+  garment_type text not null,
+  garment_type_other text,
+  quantity integer not null default 1,
+  measurements jsonb not null default '{}'::jsonb,
+  design_image_url text,
+  assigned_to bigint references public.staff(id) on delete set null,
+  quoted_amount numeric not null default 0,
+  due_date date,
+  designer_instructions text,
+  order_status text not null default 'Pending',
+  created_at timestamptz not null default now()
+);
+
+alter table public.orders enable row level security;
+
+drop policy if exists "Public can read orders" on public.orders;
+create policy "Public can read orders"
+  on public.orders for select
+  using (true);
+
+drop policy if exists "Public can insert orders" on public.orders;
+create policy "Public can insert orders"
+  on public.orders for insert
+  with check (true);
+
+drop policy if exists "Public can update orders" on public.orders;
+create policy "Public can update orders"
+  on public.orders for update
+  using (true)
+  with check (true);
+
+drop policy if exists "Public can delete orders" on public.orders;
+create policy "Public can delete orders"
+  on public.orders for delete
+  using (true);
+
+create table if not exists public.order_trials (
+  id bigint generated always as identity primary key,
+  order_id bigint not null references public.orders(id) on delete cascade,
+  trial_date date,
+  status text not null default 'Scheduled',
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.order_trials enable row level security;
+
+drop policy if exists "Public can read order_trials" on public.order_trials;
+create policy "Public can read order_trials"
+  on public.order_trials for select
+  using (true);
+
+drop policy if exists "Public can insert order_trials" on public.order_trials;
+create policy "Public can insert order_trials"
+  on public.order_trials for insert
+  with check (true);
+
+drop policy if exists "Public can update order_trials" on public.order_trials;
+create policy "Public can update order_trials"
+  on public.order_trials for update
+  using (true)
+  with check (true);
+
+drop policy if exists "Public can delete order_trials" on public.order_trials;
+create policy "Public can delete order_trials"
+  on public.order_trials for delete
+  using (true);
+
+-- The original schema never added delete policies for users/transactions.
+-- Customer and transaction deletion from the admin UI needs these.
+drop policy if exists "Public can delete users" on public.users;
+create policy "Public can delete users"
+  on public.users for delete
+  using (true);
+
+drop policy if exists "Public can delete transactions" on public.transactions;
+create policy "Public can delete transactions"
+  on public.transactions for delete
+  using (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'staff'
+  ) then
+    alter publication supabase_realtime add table public.staff;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'orders'
+  ) then
+    alter publication supabase_realtime add table public.orders;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'order_trials'
+  ) then
+    alter publication supabase_realtime add table public.order_trials;
+  end if;
+end $$;
+
+-- Storage bucket for garment design reference photos.
+insert into storage.buckets (id, name, public)
+values ('order-designs', 'order-designs', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public can read order design images" on storage.objects;
+create policy "Public can read order design images"
+  on storage.objects for select
+  using (bucket_id = 'order-designs');
+
+drop policy if exists "Public can upload order design images" on storage.objects;
+create policy "Public can upload order design images"
+  on storage.objects for insert
+  with check (bucket_id = 'order-designs');
+
+drop policy if exists "Public can update order design images" on storage.objects;
+create policy "Public can update order design images"
+  on storage.objects for update
+  using (bucket_id = 'order-designs');
+
+drop policy if exists "Public can delete order design images" on storage.objects;
+create policy "Public can delete order design images"
+  on storage.objects for delete
+  using (bucket_id = 'order-designs');
+

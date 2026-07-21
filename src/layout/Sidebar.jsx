@@ -1,10 +1,21 @@
 import { NavLink } from 'react-router-dom'
-import { IconDashboard, IconUsers, IconTransactions, IconHistory, IconLeaf, IconX } from '../components/Icons.jsx'
+import {
+  IconDashboard,
+  IconUsers,
+  IconBag,
+  IconStaff,
+  IconTransactions,
+  IconHistory,
+  IconLeaf,
+  IconX,
+} from '../components/Icons.jsx'
 import './Sidebar.css'
 
 const links = [
   { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
   { to: '/users', label: 'Users', icon: IconUsers },
+  { to: '/orders', label: 'Orders', icon: IconBag },
+  { to: '/staff', label: 'Staff', icon: IconStaff },
   { to: '/transactions', label: 'Transactions', icon: IconTransactions },
   { to: '/history', label: 'History', icon: IconHistory },
 ]

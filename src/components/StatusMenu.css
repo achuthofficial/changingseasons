@@ -1,0 +1,23 @@
+.status-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.status-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  padding: 3px 6px 3px 3px;
+  cursor: pointer;
+  border-radius: 999px;
+  color: var(--muted-soft);
+}
+
+.status-menu-trigger:hover,
+.status-menu-trigger:focus-visible {
+  border-color: var(--brand-400);
+  color: var(--accent-text);
+  background: var(--accent-bg);
+}

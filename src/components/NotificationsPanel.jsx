@@ -1,13 +1,22 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { relativeTime } from '../utils/relativeTime.js'
+import { useFloatingPosition } from '../hooks/useFloatingPosition.js'
 import './NotificationsPanel.css'
 
-export default function NotificationsPanel({ notifications, unreadCount, onMarkAsRead, onMarkAllAsRead, onClose }) {
-  const ref = useRef(null)
+export default function NotificationsPanel({ notifications, unreadCount, onMarkAsRead, onMarkAllAsRead, onClose, triggerRef }) {
+  const panelRef = useRef(null)
+  const coords = useFloatingPosition(true, triggerRef, { width: 340, height: 440 })
 
   useEffect(() => {
     function handlePointerDown(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose()
+      if (
+        triggerRef.current?.contains(e.target) ||
+        panelRef.current?.contains(e.target)
+      ) {
+        return
+      }
+      onClose()
     }
     function handleKeyDown(e) {
       if (e.key === 'Escape') onClose()
@@ -18,10 +27,12 @@ export default function NotificationsPanel({ notifications, unreadCount, onMarkA
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [onClose, triggerRef])
 
-  return (
-    <div className="notif-panel" ref={ref}>
+  if (!coords) return null
+
+  return createPortal(
+    <div className="notif-panel" ref={panelRef} style={{ top: coords.top, right: coords.right }}>
       <div className="notif-panel-head">
         <h3>Notifications</h3>
         {unreadCount > 0 && (
@@ -48,6 +59,7 @@ export default function NotificationsPanel({ notifications, unreadCount, onMarkA
           </button>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

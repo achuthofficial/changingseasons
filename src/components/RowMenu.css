@@ -1,0 +1,60 @@
+.row-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.row-more {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--muted);
+  border-radius: 9px;
+}
+
+.row-more:hover,
+.row-more:focus-visible {
+  border-color: var(--brand-400);
+  color: var(--accent-text);
+  background: var(--accent-bg);
+}
+
+.row-menu-list {
+  position: fixed;
+  min-width: 150px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 200;
+}
+
+.row-menu-item {
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.row-menu-item:hover {
+  background: var(--accent-bg);
+  color: var(--accent-text);
+}
+
+.row-menu-item.is-danger {
+  color: var(--danger-text);
+}
+
+.row-menu-item.is-danger:hover {
+  background: var(--danger-bg);
+}

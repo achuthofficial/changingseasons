@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import Badge from '../components/Badge.jsx'
-import StatCard from '../components/StatCard.jsx'
-import { IconSearch, IconRupee, IconCard, IconRefund, IconAlert } from '../components/Icons.jsx'
+import { IconSearch } from '../components/Icons.jsx'
 import { useTransactions } from '../hooks/useTransactions.js'
 import { formatINR } from '../utils/format.js'
 import './Transactions.css'
@@ -12,14 +11,6 @@ export default function Transactions() {
   const { transactions } = useTransactions()
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('All')
-
-  const summary = useMemo(() => {
-    const total = transactions.reduce((sum, t) => (t.status === 'Completed' ? sum + Number(t.amount) : sum), 0)
-    const completed = transactions.filter((t) => t.status === 'Completed').length
-    const pending = transactions.filter((t) => t.status === 'Pending').length
-    const refunded = transactions.filter((t) => t.status === 'Refunded').length
-    return { total, completed, pending, refunded }
-  }, [transactions])
 
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
@@ -36,13 +27,6 @@ export default function Transactions() {
 
   return (
     <div>
-      <div className="stat-grid">
-        <StatCard icon={IconRupee} label="Completed Revenue" value={formatINR(summary.total)} delta={0} trend="up" />
-        <StatCard icon={IconCard} label="Completed Orders" value={summary.completed} delta={0} trend="up" />
-        <StatCard icon={IconAlert} label="Pending" value={summary.pending} delta={0} trend="up" />
-        <StatCard icon={IconRefund} label="Refunded" value={summary.refunded} delta={0} trend="up" />
-      </div>
-
       <section className="card">
         <div className="toolbar">
           <label className="toolbar-search">

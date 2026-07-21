@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 
 // Generic helper: loads a table once, then keeps it in sync via Supabase Realtime.
@@ -7,6 +7,10 @@ export function useRealtimeTable(table, { select = '*', orderBy, ascending = fal
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Multiple components can use the same table hook at once (e.g. a modal
+  // and its parent page both calling useUsers()) — each needs its own
+  // channel, or Supabase errors trying to subscribe the same topic twice.
+  const instanceId = useId()
 
   const fetchInitial = useCallback(async () => {
     let query = supabase.from(table).select(select)
@@ -33,10 +37,13 @@ export function useRealtimeTable(table, { select = '*', orderBy, ascending = fal
     fetchInitial()
 
     const channel = supabase
-      .channel(`realtime:${table}`)
+      .channel(`realtime:${table}:${instanceId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
         setRows((current) => {
           if (payload.eventType === 'INSERT') {
+            // The initial fetch and this event can race and both deliver the
+            // same row (e.g. inserted right as the page mounts) — dedupe by id.
+            if (current.some((row) => row.id === payload.new.id)) return current
             return [payload.new, ...current]
           }
           if (payload.eventType === 'UPDATE') {
@@ -53,7 +60,7 @@ export function useRealtimeTable(table, { select = '*', orderBy, ascending = fal
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [fetchInitial, table])
+  }, [fetchInitial, table, instanceId])
 
   return { rows, loading, error, refetch: fetchInitial, mutate: setRows }
 }

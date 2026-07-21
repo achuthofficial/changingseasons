@@ -1,0 +1,98 @@
+-- Marks which notifications should also be emailed (new order, due soon,
+-- overdue, trial reminders) vs. bell-only (status changes, trial
+-- attended/missed, new customer). Run after supabase-notifications-schema.sql.txt.
+--
+-- The actual email delivery is a separate step: deploy the Edge Function at
+-- supabase/functions/send-notification-email/index.ts, set the
+-- RESEND_API_KEY secret, then create a Database Webhook on this table's
+-- INSERT event pointing at that function. See the plan / chat for the exact
+-- dashboard steps — none of that is SQL.
+
+alter table public.notifications add column if not exists notify_email boolean not null default false;
+
+-- 1. New order created — now also emailed.
+create or replace function public.notify_new_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+  v_garment text;
+begin
+  select name into v_customer_name from public.users where id = new.customer_id;
+  v_garment := case when new.garment_type = 'Other'
+    then coalesce(new.garment_type_other, 'Other')
+    else new.garment_type end;
+
+  insert into public.notifications (message, notify_email)
+  values (format(
+    'New order — %s for %s (₹%s)%s',
+    v_garment,
+    coalesce(v_customer_name, 'Unknown customer'),
+    to_char(new.quoted_amount, 'FM999999999'),
+    case when new.due_date is not null then format(', due %s', new.due_date) else '' end
+  ), true);
+  return new;
+end;
+$$;
+
+-- 2. Daily reminders (due soon / overdue / upcoming trials) — now also emailed.
+create or replace function public.send_daily_reminders()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r record;
+begin
+  for r in
+    select o.id, o.due_date, u.name as customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.order_status in ('Pending', 'In Progress', 'Ready')
+      and o.due_date is not null
+      and o.due_date between current_date and current_date + 3
+      and (o.due_soon_notified_at is null or o.due_soon_notified_at < current_date)
+  loop
+    insert into public.notifications (message, notify_email)
+    values (format('Order #%s for %s is due on %s', r.id, r.customer_name, r.due_date), true);
+    update public.orders set due_soon_notified_at = current_date where id = r.id;
+  end loop;
+
+  for r in
+    select o.id, o.due_date, u.name as customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.order_status in ('Pending', 'In Progress', 'Ready')
+      and o.due_date is not null
+      and o.due_date < current_date
+      and (o.overdue_notified_at is null or o.overdue_notified_at < current_date)
+  loop
+    insert into public.notifications (message, notify_email)
+    values (format('Order #%s for %s is overdue (was due %s)', r.id, r.customer_name, r.due_date), true);
+    update public.orders set overdue_notified_at = current_date where id = r.id;
+  end loop;
+
+  for r in
+    select t.id, t.trial_date, t.order_id, u.name as customer_name
+    from public.order_trials t
+    join public.orders o on o.id = t.order_id
+    join public.users u on u.id = o.customer_id
+    where t.status = 'Scheduled'
+      and t.trial_date is not null
+      and t.trial_date between current_date and current_date + 1
+      and (t.reminder_sent_at is null or t.reminder_sent_at < current_date)
+  loop
+    insert into public.notifications (message, notify_email)
+    values (format('Trial reminder — %s has a trial on %s for order #%s', r.customer_name, r.trial_date, r.order_id), true);
+    update public.order_trials set reminder_sent_at = current_date where id = r.id;
+  end loop;
+end;
+$$;
+
+-- notify_order_status_change(), notify_trial_scheduled(), notify_trial_outcome(),
+-- and notify_new_customer() are intentionally left unchanged — they keep
+-- inserting without notify_email, which defaults to false (bell-only).

@@ -1,0 +1,105 @@
+-- Order line items: lets one order contain multiple garments/quantities
+-- instead of exactly one. Run after supabase-orders-staff-schema.sql.txt
+-- and supabase-email-notifications.sql.txt.
+--
+-- Order of operations matters here: create the table, backfill it from the
+-- existing single-garment orders, THEN replace notify_new_order() (which
+-- reads garment_type/garment_type_other directly), THEN drop the old
+-- columns. Doing the column drop before fixing the trigger will break
+-- every future order insert with "column garment_type does not exist".
+
+create table if not exists public.order_items (
+  id bigint generated always as identity primary key,
+  order_id bigint not null references public.orders(id) on delete cascade,
+  garment_type text not null,
+  garment_type_other text,
+  quantity integer not null default 1,
+  unit_price numeric not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.order_items enable row level security;
+
+drop policy if exists "Public can read order_items" on public.order_items;
+create policy "Public can read order_items"
+  on public.order_items for select
+  using (true);
+
+drop policy if exists "Public can insert order_items" on public.order_items;
+create policy "Public can insert order_items"
+  on public.order_items for insert
+  with check (true);
+
+drop policy if exists "Public can update order_items" on public.order_items;
+create policy "Public can update order_items"
+  on public.order_items for update
+  using (true)
+  with check (true);
+
+drop policy if exists "Public can delete order_items" on public.order_items;
+create policy "Public can delete order_items"
+  on public.order_items for delete
+  using (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'order_items'
+  ) then
+    alter publication supabase_realtime add table public.order_items;
+  end if;
+end $$;
+
+-- Backfill: one line item per existing order, carrying over its current
+-- garment/quantity and back-computing a unit price from quoted_amount.
+-- Guards quantity <= 0 (even though the column defaults to 1 — don't trust
+-- historical data) so quantity and unit_price stay internally consistent.
+-- Note: this can lose a few rupees to rounding on old multi-quantity orders
+-- (e.g. quoted 100 for qty 3 -> unit_price 33 -> 33*3 = 99); dormant until
+-- that specific order is re-saved, at which point its total may shift by
+-- up to (quantity - 1) rupees. Acceptable, not worth engineering around.
+insert into public.order_items (order_id, garment_type, garment_type_other, quantity, unit_price, created_at)
+select
+  id,
+  garment_type,
+  garment_type_other,
+  greatest(quantity, 1),
+  round(quoted_amount / greatest(quantity, 1)),
+  created_at
+from public.orders;
+
+-- Item rows are created in a follow-up request after the order row itself
+-- (same pattern as order_trials), so they don't exist yet when this AFTER
+-- INSERT trigger fires — the notification message can no longer include a
+-- garment name, only the order id/customer/amount/due date.
+create or replace function public.notify_new_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+begin
+  select name into v_customer_name from public.users where id = new.customer_id;
+
+  insert into public.notifications (message, notify_email)
+  values (format(
+    'New order — ORD-%s for %s (₹%s)%s',
+    new.id,
+    coalesce(v_customer_name, 'Unknown customer'),
+    to_char(new.quoted_amount, 'FM999999999'),
+    case when new.due_date is not null then format(', due %s', new.due_date) else '' end
+  ), true);
+  return new;
+end;
+$$;
+
+-- Now safe to drop: garment_type / garment_type_other / quantity move to
+-- order_items. measurements, design_image_url, quoted_amount, advance_paid
+-- stay on orders — quoted_amount becomes app-computed (sum of item line
+-- totals) instead of manually typed, but remains a real stored column.
+alter table public.orders drop column garment_type;
+alter table public.orders drop column garment_type_other;
+alter table public.orders drop column quantity;

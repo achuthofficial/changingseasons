@@ -56,7 +56,6 @@
 }
 
 .timeline-icon.type-refund { color: var(--danger-text); background: var(--danger-bg); }
-.timeline-icon.type-inventory { color: var(--warning-text); background: var(--warning-bg); }
 .timeline-icon.type-payment { color: var(--accent-text); background: var(--accent-bg); }
 .timeline-icon.type-customer { color: var(--vip-text); background: var(--vip-bg); }
 

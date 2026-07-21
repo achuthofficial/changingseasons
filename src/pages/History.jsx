@@ -1,21 +1,22 @@
 import { useMemo, useState } from 'react'
-import { IconBag, IconRefund, IconUserPlus, IconAlert, IconCard } from '../components/Icons.jsx'
-import { historyEvents } from '../data/mockData.js'
+import { IconBag, IconRefund, IconUserPlus, IconCard } from '../components/Icons.jsx'
+import { useActivityFeed } from '../hooks/useActivityFeed.js'
+import { parseDateOnly } from '../utils/dateOnly.js'
 import './History.css'
 
 const typeMeta = {
   order: { icon: IconBag, label: 'Orders' },
   refund: { icon: IconRefund, label: 'Refunds' },
   customer: { icon: IconUserPlus, label: 'Customers' },
-  inventory: { icon: IconAlert, label: 'Inventory' },
   payment: { icon: IconCard, label: 'Payments' },
 }
 
-const filters = ['All', 'order', 'refund', 'customer', 'inventory', 'payment']
+const filters = ['All', 'order', 'refund', 'customer', 'payment']
 
-function formatDay(dateStr) {
-  const today = new Date('2026-07-20')
-  const date = new Date(dateStr)
+function formatDay(dateKey) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = parseDateOnly(dateKey)
   const diffDays = Math.round((today - date) / 86400000)
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
@@ -24,10 +25,11 @@ function formatDay(dateStr) {
 
 export default function History() {
   const [filter, setFilter] = useState('All')
+  const { events } = useActivityFeed()
 
   const filtered = useMemo(
-    () => (filter === 'All' ? historyEvents : historyEvents.filter((e) => e.type === filter)),
-    [filter],
+    () => (filter === 'All' ? events : events.filter((e) => e.type === filter)),
+    [filter, events],
   )
 
   const grouped = useMemo(() => {
@@ -87,7 +89,7 @@ export default function History() {
 
         {grouped.length === 0 && (
           <p className="empty-row">
-            {historyEvents.length === 0 ? 'No activity yet.' : 'No activity for this filter.'}
+            {events.length === 0 ? 'No activity yet.' : 'No activity for this filter.'}
           </p>
         )}
       </section>

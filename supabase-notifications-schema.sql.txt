@@ -1,0 +1,265 @@
+-- Real-time notification triggers + a daily reminders job.
+-- Run after supabase-users-transactions.sql.txt and
+-- supabase-orders-staff-schema.sql.txt.
+--
+-- The `notifications` table already exists in this project (created
+-- outside these schema files, currently holding old demo rows) with
+-- columns: id, message, read, created_at. This file wires real events
+-- into it and catches it up on RLS + realtime, which it never had.
+
+alter table public.notifications enable row level security;
+
+drop policy if exists "Public can read notifications" on public.notifications;
+create policy "Public can read notifications"
+  on public.notifications for select
+  using (true);
+
+drop policy if exists "Public can insert notifications" on public.notifications;
+create policy "Public can insert notifications"
+  on public.notifications for insert
+  with check (true);
+
+drop policy if exists "Public can update notifications" on public.notifications;
+create policy "Public can update notifications"
+  on public.notifications for update
+  using (true)
+  with check (true);
+
+drop policy if exists "Public can delete notifications" on public.notifications;
+create policy "Public can delete notifications"
+  on public.notifications for delete
+  using (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
+end $$;
+
+-- 1. New order created
+create or replace function public.notify_new_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+  v_garment text;
+begin
+  select name into v_customer_name from public.users where id = new.customer_id;
+  v_garment := case when new.garment_type = 'Other'
+    then coalesce(new.garment_type_other, 'Other')
+    else new.garment_type end;
+
+  insert into public.notifications (message)
+  values (format(
+    'New order — %s for %s (₹%s)%s',
+    v_garment,
+    coalesce(v_customer_name, 'Unknown customer'),
+    to_char(new.quoted_amount, 'FM999999999'),
+    case when new.due_date is not null then format(', due %s', new.due_date) else '' end
+  ));
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_new_order on public.orders;
+create trigger trg_notify_new_order
+  after insert on public.orders
+  for each row execute function public.notify_new_order();
+
+-- 2. Order status changed
+create or replace function public.notify_order_status_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+begin
+  if new.order_status is distinct from old.order_status then
+    select name into v_customer_name from public.users where id = new.customer_id;
+    insert into public.notifications (message)
+    values (format(
+      'Order #%s for %s moved to %s',
+      new.id,
+      coalesce(v_customer_name, 'Unknown customer'),
+      new.order_status
+    ));
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_order_status_change on public.orders;
+create trigger trg_notify_order_status_change
+  after update on public.orders
+  for each row execute function public.notify_order_status_change();
+
+-- 3. Trial scheduled
+create or replace function public.notify_trial_scheduled()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+begin
+  select u.name into v_customer_name
+  from public.orders o
+  join public.users u on u.id = o.customer_id
+  where o.id = new.order_id;
+
+  insert into public.notifications (message)
+  values (format(
+    'Trial scheduled — %s, order #%s%s',
+    coalesce(v_customer_name, 'Unknown customer'),
+    new.order_id,
+    case when new.trial_date is not null then format(', on %s', new.trial_date) else '' end
+  ));
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_trial_scheduled on public.order_trials;
+create trigger trg_notify_trial_scheduled
+  after insert on public.order_trials
+  for each row execute function public.notify_trial_scheduled();
+
+-- 4. Trial attended / missed
+create or replace function public.notify_trial_outcome()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+begin
+  if new.status is distinct from old.status and new.status in ('Attended', 'Missed') then
+    select u.name into v_customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.id = new.order_id;
+
+    insert into public.notifications (message)
+    values (format(
+      'Trial %s — %s, order #%s',
+      new.status,
+      coalesce(v_customer_name, 'Unknown customer'),
+      new.order_id
+    ));
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_trial_outcome on public.order_trials;
+create trigger trg_notify_trial_outcome
+  after update on public.order_trials
+  for each row execute function public.notify_trial_outcome();
+
+-- 5. New customer registered
+create or replace function public.notify_new_customer()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.notifications (message)
+  values (format('New customer registered — %s', new.name));
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_notify_new_customer on public.users;
+create trigger trg_notify_new_customer
+  after insert on public.users
+  for each row execute function public.notify_new_customer();
+
+-- Dedupe columns for the daily reminder job, so the same order/trial
+-- isn't re-notified every time the job runs.
+alter table public.orders add column if not exists due_soon_notified_at date;
+alter table public.orders add column if not exists overdue_notified_at date;
+alter table public.order_trials add column if not exists reminder_sent_at date;
+
+create or replace function public.send_daily_reminders()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r record;
+begin
+  -- Due within the next 3 days (matches the Dashboard's "Due Soon" logic).
+  for r in
+    select o.id, o.due_date, u.name as customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.order_status in ('Pending', 'In Progress', 'Ready')
+      and o.due_date is not null
+      and o.due_date between current_date and current_date + 3
+      and (o.due_soon_notified_at is null or o.due_soon_notified_at < current_date)
+  loop
+    insert into public.notifications (message)
+    values (format('Order #%s for %s is due on %s', r.id, r.customer_name, r.due_date));
+    update public.orders set due_soon_notified_at = current_date where id = r.id;
+  end loop;
+
+  -- Already past due.
+  for r in
+    select o.id, o.due_date, u.name as customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.order_status in ('Pending', 'In Progress', 'Ready')
+      and o.due_date is not null
+      and o.due_date < current_date
+      and (o.overdue_notified_at is null or o.overdue_notified_at < current_date)
+  loop
+    insert into public.notifications (message)
+    values (format('Order #%s for %s is overdue (was due %s)', r.id, r.customer_name, r.due_date));
+    update public.orders set overdue_notified_at = current_date where id = r.id;
+  end loop;
+
+  -- Trial appointments today or tomorrow.
+  for r in
+    select t.id, t.trial_date, t.order_id, u.name as customer_name
+    from public.order_trials t
+    join public.orders o on o.id = t.order_id
+    join public.users u on u.id = o.customer_id
+    where t.status = 'Scheduled'
+      and t.trial_date is not null
+      and t.trial_date between current_date and current_date + 1
+      and (t.reminder_sent_at is null or t.reminder_sent_at < current_date)
+  loop
+    insert into public.notifications (message)
+    values (format('Trial reminder — %s has a trial on %s for order #%s', r.customer_name, r.trial_date, r.order_id));
+    update public.order_trials set reminder_sent_at = current_date where id = r.id;
+  end loop;
+end;
+$$;
+
+-- Requires the pg_cron extension. If the next line errors, enable it first
+-- via Supabase Dashboard -> Database -> Extensions -> search "pg_cron" ->
+-- Enable, then re-run this file from this point down.
+create extension if not exists pg_cron;
+
+do $$
+begin
+  if not exists (select 1 from cron.job where jobname = 'boutique-daily-reminders') then
+    perform cron.schedule(
+      'boutique-daily-reminders',
+      '30 3 * * *', -- 09:00 IST daily
+      $cron$select public.send_daily_reminders();$cron$
+    );
+  end if;
+end $$;

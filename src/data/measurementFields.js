@@ -1,0 +1,21 @@
+// Mirrors the boutique's paper measurement sheet, used for every garment type.
+export const measurementFields = [
+  { key: 'blouseLength', label: 'Blouse length' },
+  { key: 'shoulder', label: 'Shoulder' },
+  { key: 'upperChest', label: 'Upper chest' },
+  { key: 'middleChest', label: 'Middle chest' },
+  { key: 'blouseWaist', label: 'Blouse waist' },
+  { key: 'dotPoint', label: 'Dot point' },
+  { key: 'handLength', label: 'Hand length' },
+  { key: 'handLoose', label: 'Hand loose' },
+  { key: 'armHole', label: 'Arm hole' },
+  { key: 'frontDeep', label: 'Front deep' },
+  { key: 'backDeep', label: 'Back deep' },
+  { key: 'topLength', label: 'Top length' },
+  { key: 'bottomLength', label: 'Bottom length' },
+  { key: 'bottomLoose', label: 'Bottom loose' },
+  { key: 'slit', label: 'Slit' },
+  { key: 'hipPoint', label: 'Hip point' },
+  { key: 'lehangaLength', label: 'Lehanga length' },
+  { key: 'lehangaWaist', label: 'Lehanga waist' },
+]

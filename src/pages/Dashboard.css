@@ -12,7 +12,18 @@
   padding-bottom: 18px;
 }
 
+.dash-table-card {
+  margin-bottom: 18px;
+}
+
+.dash-table-card:last-child {
+  margin-bottom: 0;
+}
+
 .chip-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 600;
   color: var(--accent-text);
@@ -20,6 +31,11 @@
   padding: 6px 12px;
   border-radius: 999px;
   white-space: nowrap;
+}
+
+.chip-danger {
+  color: var(--danger-text);
+  background: var(--danger-bg);
 }
 
 .mini-feed {
@@ -51,7 +67,6 @@
 }
 
 .mini-feed-icon.type-refund { color: var(--danger-text); background: var(--danger-bg); }
-.mini-feed-icon.type-inventory { color: var(--warning-text); background: var(--warning-bg); }
 .mini-feed-icon.type-payment { color: var(--accent-text); background: var(--accent-bg); }
 .mini-feed-icon.type-customer { color: var(--vip-text); background: var(--vip-bg); }
 

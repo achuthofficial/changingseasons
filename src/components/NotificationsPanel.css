@@ -1,14 +1,12 @@
 .notif-panel {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
+  position: fixed;
   width: 340px;
-  max-width: calc(100vw - 32px);
+  max-width: calc(100vw - 16px);
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  z-index: 50;
+  z-index: 200;
   overflow: hidden;
 }
 

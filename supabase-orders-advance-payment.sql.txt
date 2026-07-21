@@ -1,0 +1,2 @@
+-- Advance payment tracking on orders. Run after the other schema files.
+alter table public.orders add column if not exists advance_paid numeric not null default 0;
