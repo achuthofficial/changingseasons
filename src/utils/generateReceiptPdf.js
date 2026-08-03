@@ -41,7 +41,7 @@ function loadImageDimensions(dataUrl) {
 // Builds and downloads a one-page receipt PDF for a tailor: order + customer
 // details, an itemized garment/price breakdown, measurements, and the
 // design reference photo when available.
-export async function generateReceiptPdf({ order, customer, assignee, items = [] }) {
+export async function generateReceiptPdf({ order, customer, items = [] }) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -166,7 +166,6 @@ export async function generateReceiptPdf({ order, customer, assignee, items = []
   doc.setFontSize(10)
   const detailRows = [
     ['Due date', order.due_date ?? '-'],
-    ['Assigned to', assignee?.name ?? 'Unassigned'],
     ['Status', order.order_status],
   ]
   for (const [label, value] of detailRows) {

@@ -228,3 +228,11 @@ export const IconStaff = (p) => (
     <path d="M9.5 8h5" />
   </Svg>
 )
+
+export const IconLogout = (p) => (
+  <Svg {...p}>
+    <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+    <path d="M16 16l4-4-4-4" />
+    <path d="M20 12H9" />
+  </Svg>
+)

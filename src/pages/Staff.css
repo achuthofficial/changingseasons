@@ -1,0 +1,44 @@
+.staff-avatar-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cell-avatar-img {
+  object-fit: cover;
+}
+
+.staff-photo-lightbox {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.staff-photo-lightbox img {
+  max-width: min(80vw, 420px);
+  max-height: 60vh;
+  border-radius: var(--radius-lg);
+  object-fit: contain;
+}
+
+.staff-photo-lightbox p {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.staff-photo-lightbox .modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}

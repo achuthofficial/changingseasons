@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { IconX, IconImage } from './Icons.jsx'
+import PhoneInput from './PhoneInput.jsx'
 import { garmentTypes } from '../data/garmentTypes.js'
 import { measurementFields } from '../data/measurementFields.js'
 import { useUsers } from '../hooks/useUsers.js'
-import { useStaff } from '../hooks/useStaff.js'
 import { useOrders } from '../hooks/useOrders.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
@@ -24,7 +24,6 @@ let itemTempKey = 0
 export default function OrderModal({ order, initialCustomer, onClose, onSave }) {
   const isEdit = Boolean(order)
   const { users } = useUsers()
-  const { staff } = useStaff()
   const { orders: liveOrders } = useOrders()
   const { trials: allTrials, loading: trialsLoading } = useOrderTrials()
   const { items: allItems, loading: itemsLoading } = useOrderItems()
@@ -52,7 +51,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
   const [showPayment, setShowPayment] = useState(false)
   const [dueDate, setDueDate] = useState(order?.due_date ?? '')
   const [designerInstructions, setDesignerInstructions] = useState(order?.designer_instructions ?? '')
-  const [assignedTo, setAssignedTo] = useState(order?.assigned_to ?? '')
   const [orderStatus, setOrderStatus] = useState(order?.order_status ?? 'Pending')
   const [measurements, setMeasurements] = useState(order?.measurements ?? {})
 
@@ -197,7 +195,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
         due_date: dueDate || null,
         designer_instructions: designerInstructions.trim() || null,
         order_status: orderStatus,
-        assigned_to: assignedTo || null,
         measurements,
         quoted_amount: computedTotal,
         advance_paid: amountPaid,
@@ -206,7 +203,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
       await generateReceiptPdf({
         order: previewOrder,
         customer: selectedCustomer,
-        assignee: staff.find((s) => s.id === assignedTo),
         // eslint-disable-next-line no-unused-vars
         items: items.map(({ _key, ...rest }) => rest),
       })
@@ -266,7 +262,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
       customer_id: finalCustomerId,
       measurements,
       design_image_url: designImageUrl,
-      assigned_to: assignedTo || null,
       quoted_amount: computedTotal,
       // advance_paid is only ever set here on creation (an optional initial
       // advance) — editing an existing order never touches it, since
@@ -440,12 +435,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
                     </label>
                     <label className="modal-field">
                       <span>Phone number</span>
-                      <input
-                        type="tel"
-                        placeholder="+91 98765 43210"
-                        value={newCustomerPhone}
-                        onChange={(e) => setNewCustomerPhone(e.target.value)}
-                      />
+                      <PhoneInput value={newCustomerPhone} onChange={setNewCustomerPhone} />
                     </label>
                   </div>
                   <button type="button" className="order-customer-add" onClick={() => setCustomerMode('search')}>
@@ -600,25 +590,14 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
               ))}
             </div>
 
-            <div className="modal-field-row">
-              <label className="modal-field">
-                <span>Assigned to</span>
-                <select value={assignedTo ?? ''} onChange={(e) => setAssignedTo(e.target.value ? Number(e.target.value) : '')}>
-                  <option value="">Unassigned</option>
-                  {staff.filter((s) => s.active).map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="modal-field">
-                <span>Order status</span>
-                <select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)}>
-                  {orderStatuses.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <label className="modal-field">
+              <span>Order status</span>
+              <select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)}>
+                {orderStatuses.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
 
             <div className="modal-section-title">Trial Appointments</div>
             <div className="order-trials">

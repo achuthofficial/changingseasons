@@ -2,13 +2,15 @@ import { useState } from 'react'
 import Badge from '../components/Badge.jsx'
 import RowMenu from '../components/RowMenu.jsx'
 import StaffModal from '../components/StaffModal.jsx'
-import { IconStaff } from '../components/Icons.jsx'
+import { IconStaff, IconX } from '../components/Icons.jsx'
 import { useStaff } from '../hooks/useStaff.js'
 import { supabase } from '../lib/supabaseClient.js'
+import './Staff.css'
 
 export default function Staff() {
   const { staff, mutate } = useStaff()
   const [modalStaff, setModalStaff] = useState(undefined)
+  const [previewPhoto, setPreviewPhoto] = useState(null)
 
   async function handleDelete(member) {
     const ok = window.confirm(`Remove ${member.name} from staff? Their past orders will keep this assignment on record.`)
@@ -22,7 +24,7 @@ export default function Staff() {
     <div>
       <div className="page-header">
         <div className="page-header-copy">
-          <h2>{staff.length} staff members who can be assigned to orders</h2>
+          <h2>{staff.length} staff members on file</h2>
         </div>
         <button className="btn btn-primary" onClick={() => setModalStaff(null)}>
           <IconStaff size={16} />
@@ -45,7 +47,23 @@ export default function Staff() {
             <tbody>
               {staff.map((s) => (
                 <tr key={s.id}>
-                  <td className="cell-user-name">{s.name}</td>
+                  <td>
+                    <div className="cell-user">
+                      {s.photo_url ? (
+                        <button
+                          type="button"
+                          className="staff-avatar-btn"
+                          onClick={() => setPreviewPhoto({ url: s.photo_url, name: s.name })}
+                          aria-label={`View ${s.name}'s photo`}
+                        >
+                          <img src={s.photo_url} alt={s.name} className="cell-avatar cell-avatar-img" />
+                        </button>
+                      ) : (
+                        <span className="cell-avatar">{s.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}</span>
+                      )}
+                      <p className="cell-user-name">{s.name}</p>
+                    </div>
+                  </td>
                   <td>{s.phone ?? '—'}</td>
                   <td>{s.role ?? '—'}</td>
                   <td><Badge status={s.active ? 'Active' : 'Inactive'} /></td>
@@ -71,6 +89,18 @@ export default function Staff() {
 
       {modalStaff !== undefined && (
         <StaffModal staffMember={modalStaff} onClose={() => setModalStaff(undefined)} />
+      )}
+
+      {previewPhoto && (
+        <div className="modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && setPreviewPhoto(null)}>
+          <div className="staff-photo-lightbox">
+            <button className="modal-close" onClick={() => setPreviewPhoto(null)} aria-label="Close">
+              <IconX size={16} />
+            </button>
+            <img src={previewPhoto.url} alt={previewPhoto.name} />
+            <p>{previewPhoto.name}</p>
+          </div>
+        </div>
       )}
     </div>
   )

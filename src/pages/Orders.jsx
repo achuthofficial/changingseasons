@@ -7,7 +7,6 @@ import PaymentModal from '../components/PaymentModal.jsx'
 import { IconSearch } from '../components/Icons.jsx'
 import { useOrders } from '../hooks/useOrders.js'
 import { useUsers } from '../hooks/useUsers.js'
-import { useStaff } from '../hooks/useStaff.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
 import { supabase } from '../lib/supabaseClient.js'
@@ -25,7 +24,6 @@ const trialStatuses = ['Scheduled', 'Attended', 'Missed', 'Rescheduled']
 export default function Orders() {
   const { orders, mutate, loading: ordersLoading } = useOrders()
   const { users } = useUsers()
-  const { staff } = useStaff()
   const { trials } = useOrderTrials()
   const { items } = useOrderItems()
 
@@ -54,7 +52,6 @@ export default function Orders() {
   }, [searchParams, orders, ordersLoading, setSearchParams])
 
   const customerMap = useMemo(() => new Map(users.map((u) => [u.id, u])), [users])
-  const staffMap = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff])
 
   const latestTrialByOrder = useMemo(() => {
     const map = new Map()
@@ -111,7 +108,6 @@ export default function Orders() {
       await generateReceiptPdf({
         order,
         customer: customerMap.get(order.customer_id),
-        assignee: staffMap.get(order.assigned_to),
         items: itemsByOrder.get(order.id) ?? [],
       })
     } catch (err) {
@@ -182,7 +178,6 @@ export default function Orders() {
                 <th>Order</th>
                 <th>Customer</th>
                 <th>Garment</th>
-                <th>Assigned To</th>
                 <th>Trial</th>
                 <th>Due Date</th>
                 <th>Amount</th>
@@ -194,7 +189,6 @@ export default function Orders() {
             <tbody>
               {filtered.map((o) => {
                 const customer = customerMap.get(o.customer_id)
-                const assignee = staffMap.get(o.assigned_to)
                 const latestTrial = latestTrialByOrder.get(o.id)
                 const orderItems = itemsByOrder.get(o.id) ?? []
                 const balance = Number(o.quoted_amount ?? 0) - Number(o.advance_paid ?? 0)
@@ -206,7 +200,6 @@ export default function Orders() {
                       <p className="cell-user-sub">{formatCustomerId(o.customer_id)}</p>
                     </td>
                     <td>{itemsSummary(orderItems)}</td>
-                    <td>{assignee?.name ?? 'Unassigned'}</td>
                     <td>
                       {latestTrial ? (
                         <StatusMenu
@@ -243,7 +236,7 @@ export default function Orders() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="empty-row">
+                  <td colSpan={9} className="empty-row">
                     {orders.length === 0 ? 'No orders yet.' : 'No orders match your filters.'}
                   </td>
                 </tr>

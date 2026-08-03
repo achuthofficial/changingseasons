@@ -5,6 +5,11 @@
   box-shadow: var(--shadow-sm);
 }
 
+.auth-loading {
+  min-height: 100svh;
+  background: var(--bg-app);
+}
+
 .card-head {
   display: flex;
   align-items: flex-start;

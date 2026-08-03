@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { IconX } from './Icons.jsx'
+import PhoneInput from './PhoneInput.jsx'
 
 export default function CustomerModal({ customer, onClose, onSave }) {
   const isEdit = Boolean(customer)
@@ -65,12 +66,7 @@ export default function CustomerModal({ customer, onClose, onSave }) {
 
             <label className="modal-field">
               <span>Phone number</span>
-              <input
-                type="tel"
-                placeholder="+91 98765 43210"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
+              <PhoneInput value={phone} onChange={setPhone} />
             </label>
 
             {error && <p className="modal-error">{error}</p>}

@@ -1,0 +1,86 @@
+-- Locks down every table (and the two storage buckets' write access) to
+-- require a signed-in Supabase Auth session. Until this runs, RLS on every
+-- table is `using (true)` — literally anyone holding the public anon key
+-- (which ships in the browser bundle) can read/write all data, logged in
+-- or not. The login page added to the app is not real security without
+-- this file.
+--
+-- DO THIS FIRST, IN ORDER, OR YOU WILL LOCK YOURSELF OUT:
+--   1. Supabase Dashboard -> Authentication -> Users -> Add user. Create
+--      the one admin account (email + password) this app will use. This
+--      project has no sign-up screen by design, so this is the only way
+--      to create it.
+--   2. Run the app, sign in with that account, confirm the dashboard
+--      loads data normally (RLS is still wide open at this point, so this
+--      only proves login itself works).
+--   3. Only then run this file in the Supabase SQL editor.
+-- If you run this file before step 1-2 succeed, the app will show empty/
+-- broken data for everyone, including you, until you fix login and re-run
+-- a matching set of policies.
+
+do $$
+
+declare
+  t text;
+begin
+  foreach t in array array['users', 'transactions', 'staff', 'orders', 'order_trials', 'order_items', 'notifications']
+  loop
+    execute format('drop policy if exists "Public can read %1$s" on public.%1$I', t);
+    execute format('drop policy if exists "Public can insert %1$s" on public.%1$I', t);
+    execute format('drop policy if exists "Public can update %1$s" on public.%1$I', t);
+    execute format('drop policy if exists "Public can delete %1$s" on public.%1$I', t);
+
+    execute format(
+      'create policy "Authenticated can read %1$s" on public.%1$I for select using (auth.role() = ''authenticated'')',
+      t
+    );
+    execute format(
+      'create policy "Authenticated can insert %1$s" on public.%1$I for insert with check (auth.role() = ''authenticated'')',
+      t
+    );
+    execute format(
+      'create policy "Authenticated can update %1$s" on public.%1$I for update using (auth.role() = ''authenticated'') with check (auth.role() = ''authenticated'')',
+      t
+    );
+    execute format(
+      'create policy "Authenticated can delete %1$s" on public.%1$I for delete using (auth.role() = ''authenticated'')',
+      t
+    );
+  end loop;
+end $$;
+
+-- Storage: uploads/edits/deletes require sign-in. Reads stay public — both
+-- buckets are `public = true`, so Supabase serves objects straight from
+-- the public URL without consulting these SELECT policies anyway; this
+-- just keeps the policy honest about what actually happens. The app reads
+-- design/staff photos (receipt PDFs, avatars) without attaching a session,
+-- so a read policy that required auth would silently break those images.
+drop policy if exists "Public can upload order design images" on storage.objects;
+create policy "Authenticated can upload order design images"
+  on storage.objects for insert
+  with check (bucket_id = 'order-designs' and auth.role() = 'authenticated');
+
+drop policy if exists "Public can update order design images" on storage.objects;
+create policy "Authenticated can update order design images"
+  on storage.objects for update
+  using (bucket_id = 'order-designs' and auth.role() = 'authenticated');
+
+drop policy if exists "Public can delete order design images" on storage.objects;
+create policy "Authenticated can delete order design images"
+  on storage.objects for delete
+  using (bucket_id = 'order-designs' and auth.role() = 'authenticated');
+
+drop policy if exists "Public can upload staff photos" on storage.objects;
+create policy "Authenticated can upload staff photos"
+  on storage.objects for insert
+  with check (bucket_id = 'staff-photos' and auth.role() = 'authenticated');
+
+drop policy if exists "Public can update staff photos" on storage.objects;
+create policy "Authenticated can update staff photos"
+  on storage.objects for update
+  using (bucket_id = 'staff-photos' and auth.role() = 'authenticated');
+
+drop policy if exists "Public can delete staff photos" on storage.objects;
+create policy "Authenticated can delete staff photos"
+  on storage.objects for delete
+  using (bucket_id = 'staff-photos' and auth.role() = 'authenticated');

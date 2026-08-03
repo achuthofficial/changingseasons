@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
-import { IconX } from './Icons.jsx'
+import { IconX, IconImage } from './Icons.jsx'
+import './StaffModal.css'
 
 export default function StaffModal({ staffMember, onClose, onSave }) {
   const isEdit = Boolean(staffMember)
@@ -8,10 +9,19 @@ export default function StaffModal({ staffMember, onClose, onSave }) {
   const [phone, setPhone] = useState(staffMember?.phone ?? '')
   const [role, setRole] = useState(staffMember?.role ?? '')
   const [active, setActive] = useState(staffMember?.active ?? true)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState(staffMember?.photo_url ?? null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
   const isValid = name.trim()
+
+  function handlePhotoChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -20,11 +30,26 @@ export default function StaffModal({ staffMember, onClose, onSave }) {
     setSubmitting(true)
     setError(null)
 
+    let photoUrl = staffMember?.photo_url ?? null
+
+    if (photoFile) {
+      const path = `${Date.now()}-${photoFile.name}`
+      const { error: uploadError } = await supabase.storage.from('staff-photos').upload(path, photoFile)
+      if (uploadError) {
+        setError(uploadError.message)
+        setSubmitting(false)
+        return
+      }
+      const { data: publicUrlData } = supabase.storage.from('staff-photos').getPublicUrl(path)
+      photoUrl = publicUrlData.publicUrl
+    }
+
     const payload = {
       name: name.trim(),
       phone: phone.trim() || null,
       role: role.trim() || null,
       active,
+      photo_url: photoUrl,
     }
 
     const query = isEdit
@@ -78,6 +103,21 @@ export default function StaffModal({ staffMember, onClose, onSave }) {
             </label>
 
             <label className="modal-field">
+              <span>Photo</span>
+              <div className="staff-photo-upload">
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Staff" className="staff-photo-preview" />
+                ) : (
+                  <div className="staff-photo-placeholder"><IconImage size={22} /></div>
+                )}
+                <label className="btn btn-ghost staff-photo-btn">
+                  {photoPreview ? 'Replace photo' : 'Upload photo'}
+                  <input type="file" accept="image/*" onChange={handlePhotoChange} hidden />
+                </label>
+              </div>
+            </label>
+
+            <label className="modal-field">
               <span>Role</span>
               <input
                 type="text"
@@ -94,7 +134,7 @@ export default function StaffModal({ staffMember, onClose, onSave }) {
                 checked={active}
                 onChange={(e) => setActive(e.target.checked)}
               />
-              <span>Active (assignable to orders)</span>
+              <span>Active</span>
             </label>
 
             {error && <p className="modal-error">{error}</p>}

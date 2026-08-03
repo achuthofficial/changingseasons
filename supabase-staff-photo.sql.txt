@@ -1,0 +1,30 @@
+-- Staff photo (ID/profile picture): a photo_url column on staff, plus a
+-- public Storage bucket to upload them to. Mirrors the order-designs bucket
+-- set up in supabase-orders-staff-schema.sql.txt. Run in the Supabase SQL
+-- editor whenever convenient — additive only, safe to run anytime.
+
+alter table public.staff add column if not exists photo_url text;
+
+insert into storage.buckets (id, name, public)
+values ('staff-photos', 'staff-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public can read staff photos" on storage.objects;
+create policy "Public can read staff photos"
+  on storage.objects for select
+  using (bucket_id = 'staff-photos');
+
+drop policy if exists "Public can upload staff photos" on storage.objects;
+create policy "Public can upload staff photos"
+  on storage.objects for insert
+  with check (bucket_id = 'staff-photos');
+
+drop policy if exists "Public can update staff photos" on storage.objects;
+create policy "Public can update staff photos"
+  on storage.objects for update
+  using (bucket_id = 'staff-photos');
+
+drop policy if exists "Public can delete staff photos" on storage.objects;
+create policy "Public can delete staff photos"
+  on storage.objects for delete
+  using (bucket_id = 'staff-photos');

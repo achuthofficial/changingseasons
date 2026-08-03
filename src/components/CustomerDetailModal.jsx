@@ -8,7 +8,6 @@ import { IconX } from './Icons.jsx'
 import { useOrders } from '../hooks/useOrders.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
-import { useStaff } from '../hooks/useStaff.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
@@ -22,7 +21,6 @@ export default function CustomerDetailModal({ customer, onClose }) {
   const { orders } = useOrders()
   const { trials } = useOrderTrials()
   const { items } = useOrderItems()
-  const { staff } = useStaff()
   const [editOpen, setEditOpen] = useState(false)
   // undefined = closed, null = creating a new order, an order object = editing it
   const [orderModal, setOrderModal] = useState(undefined)
@@ -47,8 +45,6 @@ export default function CustomerDetailModal({ customer, onClose }) {
     return map
   }, [trials])
 
-  const staffMap = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff])
-
   const itemsByOrder = useMemo(() => {
     const map = new Map()
     for (const i of items) {
@@ -63,7 +59,6 @@ export default function CustomerDetailModal({ customer, onClose }) {
       await generateReceiptPdf({
         order,
         customer,
-        assignee: staffMap.get(order.assigned_to),
         items: itemsByOrder.get(order.id) ?? [],
       })
     } catch (err) {

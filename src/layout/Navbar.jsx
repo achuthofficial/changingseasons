@@ -5,17 +5,19 @@ import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications.js'
 import { useUsers } from '../hooks/useUsers.js'
 import { useOrders } from '../hooks/useOrders.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
+import { useAuth } from '../hooks/useAuth.js'
 import { formatCustomerId } from '../utils/format.js'
 import { garmentLabel, itemsSummary } from '../utils/orderItems.js'
 import NotificationsPanel from '../components/NotificationsPanel.jsx'
 import NavbarSearchResults from '../components/NavbarSearchResults.jsx'
+import ProfileMenu from '../components/ProfileMenu.jsx'
 import './Navbar.css'
 
 const pageMeta = {
   '/': { title: 'Dashboard', subtitle: 'Overview of your boutique performance' },
   '/users': { title: 'Users', subtitle: 'Manage your customer base' },
   '/orders': { title: 'Orders', subtitle: 'Garments, measurements, and delivery tracking' },
-  '/staff': { title: 'Staff', subtitle: 'Manage who orders can be assigned to' },
+  '/staff': { title: 'Staff', subtitle: 'Manage your boutique staff' },
   '/transactions': { title: 'Transactions', subtitle: 'Track orders and payments' },
   '/history': { title: 'History', subtitle: 'Recent activity across the store' },
 }
@@ -27,6 +29,9 @@ export default function Navbar({ onMenuClick, theme, onToggleTheme }) {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useRealtimeNotifications()
   const [notifOpen, setNotifOpen] = useState(false)
   const bellRef = useRef(null)
+  const { user, signOut } = useAuth()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef(null)
 
   const { users } = useUsers()
   const { orders } = useOrders()
@@ -154,14 +159,26 @@ export default function Navbar({ onMenuClick, theme, onToggleTheme }) {
           )}
         </div>
 
-        <button className="navbar-profile">
-          <span className="navbar-avatar">S</span>
+        <button
+          ref={profileRef}
+          className="navbar-profile"
+          onClick={() => setProfileOpen((open) => !open)}
+        >
+          <span className="navbar-avatar">{user?.email?.[0]?.toUpperCase() ?? '?'}</span>
           <span className="navbar-profile-text">
-            <strong>Sandhya</strong>
+            <strong>{user?.email ?? 'Signed in'}</strong>
             <span>Owner</span>
           </span>
           <IconChevronDown size={15} />
         </button>
+        {profileOpen && (
+          <ProfileMenu
+            email={user?.email}
+            onSignOut={signOut}
+            onClose={() => setProfileOpen(false)}
+            triggerRef={profileRef}
+          />
+        )}
       </div>
     </header>
   )
