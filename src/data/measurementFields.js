@@ -41,6 +41,39 @@ export const measurementFields = [
   { key: 'sleeveLooseShort', label: 'Sleeve loose short' },
   { key: 'sleeveLooseElbow', label: 'Sleeve loose elbow' },
   { key: 'sleeveLoose34', label: 'Sleeve loose 3/4th' },
+  { key: 'sleeveLengthShort', label: 'Sleeve length short' },
+  { key: 'sleeveLengthElbow', label: 'Sleeve length elbow' },
+  { key: 'sleeveLength34', label: 'Sleeve length 3/4th' },
+  { key: 'sleeveLooseFull', label: 'Sleeve loose full' },
+  { key: 'highNeck', label: 'High neck' },
+  { key: 'boatNeck', label: 'Boat neck' },
+  { key: 'longBlouseLength', label: 'Long blouse length' },
+  { key: 'longBlouseWaist', label: 'Long blouse waist' },
+]
+
+// The original 18-field generic set, kept as the default for any garment
+// type without its own defined subset below (Work Blouse, Saree Fall &
+// Pico, Saree Knots, Backing, Border, Alteration, Other, and anything added
+// later that hasn't been given its own set yet).
+const defaultMeasurementKeys = [
+  'blouseLength',
+  'shoulder',
+  'upperChest',
+  'middleChest',
+  'blouseWaist',
+  'dotPoint',
+  'handLength',
+  'handLoose',
+  'armHole',
+  'frontDeep',
+  'backDeep',
+  'topLength',
+  'bottomLength',
+  'bottomLoose',
+  'slit',
+  'hipPoint',
+  'lehangaLength',
+  'lehangaWaist',
 ]
 
 // Top & Bottom, Frock, and Anarkali all use this same measurement set.
@@ -71,10 +104,35 @@ const topBottomFrockAnarkaliKeys = [
 ]
 
 // Which of the fields above are relevant for a given garment type, so the
-// order form only shows fields that actually apply instead of the full
-// generic list for every garment. A garment type with no entry here still
-// shows every field (safe default) until its own subset is defined.
+// order form only shows fields that actually apply instead of every field
+// ever defined. A garment type with no entry here falls back to
+// defaultMeasurementKeys (see measurementFieldsFor below).
 export const measurementFieldsByGarment = {
+  Blouse: [
+    'length',
+    'shoulder',
+    'upperChest',
+    'middleChest',
+    'waist',
+    'dotPoint',
+    'sleeveLengthShort',
+    'sleeveLengthElbow',
+    'sleeveLength34',
+    'fullSleeve',
+    'sleeveLooseShort',
+    'sleeveLooseElbow',
+    'sleeveLoose34',
+    'sleeveLooseFull',
+    'armRound',
+    'frontDeep',
+    'backDeep',
+    'highNeck',
+    'boatNeck',
+    'longBlouseLength',
+    'longBlouseWaist',
+    'frontCross',
+    'backCross',
+  ],
   Lehenga: ['lehangaLength', 'lehangaWaist', 'hipPoint'],
   'Men Kurta': [
     'length',
@@ -101,9 +159,8 @@ export const measurementFieldsByGarment = {
 const fieldsByKey = new Map(measurementFields.map((f) => [f.key, f]))
 
 export function measurementFieldsFor(garmentType) {
-  const keys = measurementFieldsByGarment[garmentType]
-  if (!keys) return measurementFields
-  // Preserves the order given in measurementFieldsByGarment (not the master
-  // list's order), so e.g. Men Kurta shows Length first, then Shoulder, etc.
+  const keys = measurementFieldsByGarment[garmentType] ?? defaultMeasurementKeys
+  // Preserves the given key order (not the master list's order), so e.g.
+  // Men Kurta shows Length first, then Shoulder, etc.
   return keys.map((k) => fieldsByKey.get(k)).filter(Boolean)
 }
