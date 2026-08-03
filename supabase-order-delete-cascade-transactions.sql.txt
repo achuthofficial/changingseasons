@@ -1,0 +1,11 @@
+-- Until now, deleting an order only detached its transactions (order_id set
+-- to null) instead of removing them — a payment log entry survived with no
+-- order left to point at. Deleting an order should take its payment history
+-- with it, whether the order is deleted directly (Orders page) or via a
+-- cascading customer deletion (Users page deletes the customer -> orders
+-- cascade from users -> this makes transactions cascade from orders too).
+-- Idempotent: safe to re-run, it just replaces the same constraint.
+
+alter table public.transactions drop constraint if exists transactions_order_id_fkey;
+alter table public.transactions add constraint transactions_order_id_fkey
+  foreign key (order_id) references public.orders(id) on delete cascade;

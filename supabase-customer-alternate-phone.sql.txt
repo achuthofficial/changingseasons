@@ -1,0 +1,5 @@
+-- An optional second contact number per customer (e.g. a spouse's number,
+-- landline, or a number used only when the primary one is unreachable).
+-- Additive only, safe to run anytime.
+
+alter table public.users add column if not exists alternate_phone text;

@@ -7,6 +7,7 @@ export default function CustomerModal({ customer, onClose, onSave }) {
   const isEdit = Boolean(customer)
   const [name, setName] = useState(customer?.name ?? '')
   const [phone, setPhone] = useState(customer?.phone ?? '')
+  const [alternatePhone, setAlternatePhone] = useState(customer?.alternate_phone ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
@@ -22,6 +23,7 @@ export default function CustomerModal({ customer, onClose, onSave }) {
     const payload = {
       name: name.trim(),
       phone: phone.trim(),
+      alternate_phone: alternatePhone.trim() || null,
     }
 
     const query = isEdit
@@ -67,6 +69,11 @@ export default function CustomerModal({ customer, onClose, onSave }) {
             <label className="modal-field">
               <span>Phone number</span>
               <PhoneInput value={phone} onChange={setPhone} />
+            </label>
+
+            <label className="modal-field">
+              <span>Alternate phone number (optional)</span>
+              <PhoneInput value={alternatePhone} onChange={setAlternatePhone} />
             </label>
 
             {error && <p className="modal-error">{error}</p>}

@@ -76,14 +76,20 @@ export default function Users() {
         u.name.toLowerCase().includes(q) ||
         (u.email ?? '').toLowerCase().includes(q) ||
         (u.phone ?? '').toLowerCase().includes(q) ||
+        (u.alternate_phone ?? '').toLowerCase().includes(q) ||
         String(u.id) === q
       )
     })
   }, [users, query])
 
   async function handleDelete(u) {
-    const orderCount = orders.filter((o) => o.customer_id === u.id).length
-    const warning = orderCount > 0 ? ` This will also delete their ${orderCount} order(s).` : ''
+    const customerOrderIds = new Set(orders.filter((o) => o.customer_id === u.id).map((o) => o.id))
+    const orderCount = customerOrderIds.size
+    const txCount = transactions.filter((t) => customerOrderIds.has(t.order_id)).length
+    const parts = []
+    if (orderCount > 0) parts.push(`${orderCount} order(s)`)
+    if (txCount > 0) parts.push(`${txCount} transaction(s)`)
+    const warning = parts.length > 0 ? ` This will also delete their ${parts.join(' and ')}.` : ''
     const ok = window.confirm(`Delete customer ${u.name}?${warning} This cannot be undone.`)
     if (!ok) return
     mutate((current) => current.filter((c) => c.id !== u.id))
@@ -142,7 +148,10 @@ export default function Users() {
                       </div>
                     </button>
                   </td>
-                  <td>{u.phone}</td>
+                  <td>
+                    <p>{u.phone}</p>
+                    {u.alternate_phone && <p className="cell-user-sub">{u.alternate_phone}</p>}
+                  </td>
                   <td>{u.joined}</td>
                   <td>{orderCountByCustomer.get(u.id) ?? 0}</td>
                   <td className="cell-amount">{formatINR(spentByCustomer.get(u.id) ?? 0)}</td>

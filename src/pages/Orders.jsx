@@ -9,6 +9,7 @@ import { useOrders } from '../hooks/useOrders.js'
 import { useUsers } from '../hooks/useUsers.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
+import { useTransactions } from '../hooks/useTransactions.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
@@ -27,6 +28,7 @@ export default function Orders() {
   const { users } = useUsers()
   const { trials } = useOrderTrials()
   const { items } = useOrderItems()
+  const { transactions } = useTransactions()
 
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('All')
@@ -97,7 +99,11 @@ export default function Orders() {
   }, [orders, tab, dueFilter, query, customerMap, itemsByOrder])
 
   async function handleDelete(order) {
-    const ok = window.confirm(`Delete order ORD-${order.id}? This cannot be undone.`)
+    // The database cascades order_items, order_trials, and now transactions
+    // (payment history) when the order row itself is deleted.
+    const txCount = transactions.filter((t) => t.order_id === order.id).length
+    const warning = txCount > 0 ? ` This will also delete its ${txCount} linked transaction(s).` : ''
+    const ok = window.confirm(`Delete order ORD-${order.id}?${warning} This cannot be undone.`)
     if (!ok) return
     mutate((current) => current.filter((o) => o.id !== order.id))
     const { error } = await supabase.from('orders').delete().eq('id', order.id)

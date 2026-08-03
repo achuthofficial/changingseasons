@@ -155,10 +155,23 @@
 
 @media (max-width: 720px) {
   .navbar {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 12px;
     padding: 14px 16px;
   }
+  .navbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
   .navbar-search {
-    display: none;
+    order: 1;
+    flex: 1 1 100%;
+  }
+  .navbar-search input {
+    flex: 1;
+    width: auto;
   }
   .navbar-profile-text {
     display: none;

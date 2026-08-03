@@ -42,6 +42,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
   const [customerQuery, setCustomerQuery] = useState('')
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [newCustomerAlternatePhone, setNewCustomerAlternatePhone] = useState('')
 
   // Only meaningful when creating a brand-new order — editing an existing
   // order never writes advance_paid directly anymore, only Record Payment
@@ -109,6 +110,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
         (u) =>
           u.name.toLowerCase().includes(q) ||
           (u.phone ?? '').toLowerCase().includes(q) ||
+          (u.alternate_phone ?? '').toLowerCase().includes(q) ||
           String(u.id) === q,
       )
       .slice(0, 8)
@@ -228,6 +230,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
         .insert({
           name: newCustomerName.trim(),
           phone: newCustomerPhone.trim(),
+          alternate_phone: newCustomerAlternatePhone.trim() || null,
         })
         .select()
         .single()
@@ -438,6 +441,10 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
                       <PhoneInput value={newCustomerPhone} onChange={setNewCustomerPhone} />
                     </label>
                   </div>
+                  <label className="modal-field">
+                    <span>Alternate phone number (optional)</span>
+                    <PhoneInput value={newCustomerAlternatePhone} onChange={setNewCustomerAlternatePhone} />
+                  </label>
                   <button type="button" className="order-customer-add" onClick={() => setCustomerMode('search')}>
                     ‹ Search existing customer instead
                   </button>

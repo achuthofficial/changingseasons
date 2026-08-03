@@ -97,6 +97,12 @@ export default function CustomerDetailModal({ customer, onClose }) {
               <p className="cell-user-sub">Phone</p>
               <p className="cell-user-name">{customer.phone}</p>
             </div>
+            {customer.alternate_phone && (
+              <div>
+                <p className="cell-user-sub">Alternate Phone</p>
+                <p className="cell-user-name">{customer.alternate_phone}</p>
+              </div>
+            )}
             <div>
               <p className="cell-user-sub">Joined</p>
               <p className="cell-user-name">{customer.joined}</p>

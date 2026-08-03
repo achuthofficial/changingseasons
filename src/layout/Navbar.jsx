@@ -57,6 +57,7 @@ export default function Navbar({ onMenuClick, theme, onToggleTheme }) {
         (u) =>
           u.name.toLowerCase().includes(q) ||
           (u.phone ?? '').toLowerCase().includes(q) ||
+          (u.alternate_phone ?? '').toLowerCase().includes(q) ||
           String(u.id) === q ||
           formatCustomerId(u.id).toLowerCase().includes(q),
       )
