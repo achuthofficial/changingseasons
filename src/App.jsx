@@ -8,6 +8,7 @@ import Users from './pages/Users.jsx'
 import Orders from './pages/Orders.jsx'
 import Staff from './pages/Staff.jsx'
 import Transactions from './pages/Transactions.jsx'
+import Expenses from './pages/Expenses.jsx'
 import History from './pages/History.jsx'
 import './styles/shared.css'
 
@@ -29,6 +30,7 @@ function App() {
             <Route path="orders" element={<Orders />} />
             <Route path="staff" element={<Staff />} />
             <Route path="transactions" element={<Transactions />} />
+            <Route path="expenses" element={<Expenses />} />
             <Route path="history" element={<History />} />
           </Route>
         </Routes>

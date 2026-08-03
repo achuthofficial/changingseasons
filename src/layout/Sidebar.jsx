@@ -5,6 +5,7 @@ import {
   IconBag,
   IconStaff,
   IconTransactions,
+  IconWallet,
   IconHistory,
   IconLeaf,
   IconX,
@@ -17,6 +18,7 @@ const links = [
   { to: '/orders', label: 'Orders', icon: IconBag },
   { to: '/staff', label: 'Staff', icon: IconStaff },
   { to: '/transactions', label: 'Transactions', icon: IconTransactions },
+  { to: '/expenses', label: 'Expenses', icon: IconWallet },
   { to: '/history', label: 'History', icon: IconHistory },
 ]
 

@@ -1,0 +1,14 @@
+.expenses-category-filter {
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+}
+
+.expenses-category-filter:focus {
+  border-color: var(--brand-400);
+}

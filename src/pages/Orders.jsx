@@ -4,7 +4,7 @@ import RowMenu from '../components/RowMenu.jsx'
 import StatusMenu from '../components/StatusMenu.jsx'
 import OrderModal from '../components/OrderModal.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
-import { IconSearch } from '../components/Icons.jsx'
+import { IconSearch, IconWhatsApp } from '../components/Icons.jsx'
 import { useOrders } from '../hooks/useOrders.js'
 import { useUsers } from '../hooks/useUsers.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
@@ -14,6 +14,7 @@ import { formatCustomerId, formatINR } from '../utils/format.js'
 import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
 import { daysUntil } from '../utils/dateOnly.js'
 import { garmentLabel, itemsSummary } from '../utils/orderItems.js'
+import { buildWhatsAppLink, orderReadyMessage } from '../utils/whatsapp.js'
 import './Orders.css'
 
 const tabs = ['All', 'Pending', 'In Progress', 'Ready', 'Delivered', 'Cancelled']
@@ -215,11 +216,31 @@ export default function Orders() {
                     <td className="cell-amount">{formatINR(o.quoted_amount)}</td>
                     <td className="cell-amount">{formatINR(balance)}</td>
                     <td>
-                      <StatusMenu
-                        status={o.order_status}
-                        options={orderStatuses}
-                        onSelect={(next) => handleOrderStatusChange(o, next)}
-                      />
+                      <div className="status-cell">
+                        <StatusMenu
+                          status={o.order_status}
+                          options={orderStatuses}
+                          onSelect={(next) => handleOrderStatusChange(o, next)}
+                        />
+                        {o.order_status === 'Ready' && customer?.phone && (
+                          <a
+                            className="whatsapp-send-btn"
+                            href={buildWhatsAppLink(
+                              customer.phone,
+                              orderReadyMessage({
+                                customerName: customer.name,
+                                orderId: o.id,
+                                itemsSummary: itemsSummary(orderItems),
+                              }),
+                            )}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <IconWhatsApp size={13} />
+                            Send Message
+                          </a>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <RowMenu

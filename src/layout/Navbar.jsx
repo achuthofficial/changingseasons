@@ -19,6 +19,7 @@ const pageMeta = {
   '/orders': { title: 'Orders', subtitle: 'Garments, measurements, and delivery tracking' },
   '/staff': { title: 'Staff', subtitle: 'Manage your boutique staff' },
   '/transactions': { title: 'Transactions', subtitle: 'Track orders and payments' },
+  '/expenses': { title: 'Expenses', subtitle: 'Daily spending and income from outside orders' },
   '/history': { title: 'History', subtitle: 'Recent activity across the store' },
 }
 

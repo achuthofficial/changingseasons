@@ -229,6 +229,31 @@ export const IconStaff = (p) => (
   </Svg>
 )
 
+export const IconWallet = (p) => (
+  <Svg {...p}>
+    <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+    <path d="M14 12.5h4.5" />
+    <circle cx="14.6" cy="12.5" r="0.15" fill="currentColor" stroke="none" />
+    <path d="M4 9.5h16" />
+  </Svg>
+)
+
+export const IconDownload = (p) => (
+  <Svg {...p}>
+    <path d="M12 3.5v11.5" />
+    <path d="M7 11l5 5 5-5" />
+    <path d="M4.5 18.5v1a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1" />
+  </Svg>
+)
+
+export const IconWhatsApp = (p) => (
+  <Svg {...p}>
+    <path d="M5 20l1.3-4A7.5 7.5 0 1 1 9.5 18.7z" />
+    <path d="M9 10.5c0 3 2.5 5.5 5.5 5.5" />
+    <path d="M9 10.5c0-.6.6-1.5 1-1.5s.8.9.8 1.3-.5.9-.3 1.4c.3.7 1.1 1.5 1.8 1.8.5.2.9-.3 1.4-.3s1.2.5 1.3.9-.9 1-1.5 1" />
+  </Svg>
+)
+
 export const IconLogout = (p) => (
   <Svg {...p}>
     <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />

@@ -4,7 +4,7 @@ import StatusMenu from './StatusMenu.jsx'
 import CustomerModal from './CustomerModal.jsx'
 import OrderModal from './OrderModal.jsx'
 import PaymentModal from './PaymentModal.jsx'
-import { IconX } from './Icons.jsx'
+import { IconX, IconWhatsApp } from './Icons.jsx'
 import { useOrders } from '../hooks/useOrders.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabaseClient.js'
 import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { itemsSummary } from '../utils/orderItems.js'
+import { buildWhatsAppLink, orderReadyMessage } from '../utils/whatsapp.js'
 import './CustomerDetailModal.css'
 
 const orderStatuses = ['Pending', 'In Progress', 'Ready', 'Delivered', 'Cancelled']
@@ -151,11 +152,31 @@ export default function CustomerDetailModal({ customer, onClose }) {
                         )}
                       </td>
                       <td>
-                        <StatusMenu
-                          status={o.order_status}
-                          options={orderStatuses}
-                          onSelect={(next) => handleOrderStatusChange(o, next)}
-                        />
+                        <div className="status-cell">
+                          <StatusMenu
+                            status={o.order_status}
+                            options={orderStatuses}
+                            onSelect={(next) => handleOrderStatusChange(o, next)}
+                          />
+                          {o.order_status === 'Ready' && customer.phone && (
+                            <a
+                              className="whatsapp-send-btn"
+                              href={buildWhatsAppLink(
+                                customer.phone,
+                                orderReadyMessage({
+                                  customerName: customer.name,
+                                  orderId: o.id,
+                                  itemsSummary: itemsSummary(orderItems),
+                                }),
+                              )}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <IconWhatsApp size={13} />
+                              Send Message
+                            </a>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <RowMenu

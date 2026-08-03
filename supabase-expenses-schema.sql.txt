@@ -1,0 +1,57 @@
+-- Standalone expense/income ledger — day-to-day boutique spending (rent,
+-- utilities, salaries, supplies, etc.) and money coming in from anywhere
+-- other than a customer order (loans, interest, misc income). Deliberately
+-- separate from `transactions`, which is always tied to an order_id. Run in
+-- the Supabase SQL editor after the other schema files.
+--
+-- Categories are not enforced here (no enum/check on `category`) — they live
+-- as app-level constants in src/data/expenseCategories.js, same as garment
+-- types. `entry_type` IS constrained, since the app only ever writes
+-- 'Expense' or 'Income'.
+
+create table if not exists public.expenses (
+  id bigint generated always as identity primary key,
+  entry_type text not null check (entry_type in ('Expense', 'Income')),
+  category text not null,
+  amount numeric not null default 0,
+  entry_date date not null default current_date,
+  payment_method text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.expenses enable row level security;
+
+-- Matches the "Public can ..." naming every other table's policies use
+-- before supabase-auth-rls.sql.txt tightens them to authenticated-only —
+-- add 'expenses' to that file's array so it gets locked down too.
+drop policy if exists "Public can read expenses" on public.expenses;
+create policy "Public can read expenses"
+  on public.expenses for select
+  using (true);
+
+drop policy if exists "Public can insert expenses" on public.expenses;
+create policy "Public can insert expenses"
+  on public.expenses for insert
+  with check (true);
+
+drop policy if exists "Public can update expenses" on public.expenses;
+create policy "Public can update expenses"
+  on public.expenses for update
+  using (true)
+  with check (true);
+
+drop policy if exists "Public can delete expenses" on public.expenses;
+create policy "Public can delete expenses"
+  on public.expenses for delete
+  using (true);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'expenses'
+  ) then
+    alter publication supabase_realtime add table public.expenses;
+  end if;
+end $$;

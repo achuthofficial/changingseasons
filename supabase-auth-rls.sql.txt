@@ -23,7 +23,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['users', 'transactions', 'staff', 'orders', 'order_trials', 'order_items', 'notifications']
+  foreach t in array array['users', 'transactions', 'staff', 'orders', 'order_trials', 'order_items', 'notifications', 'expenses']
   loop
     execute format('drop policy if exists "Public can read %1$s" on public.%1$I', t);
     execute format('drop policy if exists "Public can insert %1$s" on public.%1$I', t);
