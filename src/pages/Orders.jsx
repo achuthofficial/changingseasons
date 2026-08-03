@@ -12,7 +12,7 @@ import { useOrderItems } from '../hooks/useOrderItems.js'
 import { useTransactions } from '../hooks/useTransactions.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
-import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
+import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
 import { daysUntil } from '../utils/dateOnly.js'
 import { garmentLabel, itemsSummary } from '../utils/orderItems.js'
 import { buildWhatsAppLink, orderReadyMessage } from '../utils/whatsapp.js'
@@ -110,15 +110,27 @@ export default function Orders() {
     if (error) window.alert(`Failed to delete order: ${error.message}`)
   }
 
-  async function handleDownloadReceipt(order) {
+  async function handleDownloadCustomerReceipt(order) {
     try {
-      await generateReceiptPdf({
+      await generateCustomerReceiptPdf({
         order,
         customer: customerMap.get(order.customer_id),
         items: itemsByOrder.get(order.id) ?? [],
       })
     } catch (err) {
       window.alert(`Could not generate receipt: ${err.message}`)
+    }
+  }
+
+  async function handleDownloadTailorReceipts(order) {
+    try {
+      await generateTailorReceiptPdfs({
+        order,
+        customer: customerMap.get(order.customer_id),
+        items: itemsByOrder.get(order.id) ?? [],
+      })
+    } catch (err) {
+      window.alert(`Could not generate tailor receipts: ${err.message}`)
     }
   }
 
@@ -253,7 +265,8 @@ export default function Orders() {
                         actions={[
                           { label: 'Edit', onClick: () => setModalOrder(o) },
                           ...(balance > 0 ? [{ label: 'Record Payment', onClick: () => setPaymentOrder(o) }] : []),
-                          { label: 'Download Receipt', onClick: () => handleDownloadReceipt(o) },
+                          { label: 'Download Customer Receipt', onClick: () => handleDownloadCustomerReceipt(o) },
+                          { label: 'Download Tailor Receipt(s)', onClick: () => handleDownloadTailorReceipts(o) },
                           { label: 'Delete', danger: true, onClick: () => handleDelete(o) },
                         ]}
                       />

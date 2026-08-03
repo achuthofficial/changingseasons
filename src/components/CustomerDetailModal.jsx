@@ -9,7 +9,7 @@ import { useOrders } from '../hooks/useOrders.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
 import { supabase } from '../lib/supabaseClient.js'
-import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
+import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { itemsSummary } from '../utils/orderItems.js'
 import { buildWhatsAppLink, orderReadyMessage } from '../utils/whatsapp.js'
@@ -55,15 +55,27 @@ export default function CustomerDetailModal({ customer, onClose }) {
     return map
   }, [items])
 
-  async function handleDownloadReceipt(order) {
+  async function handleDownloadCustomerReceipt(order) {
     try {
-      await generateReceiptPdf({
+      await generateCustomerReceiptPdf({
         order,
         customer,
         items: itemsByOrder.get(order.id) ?? [],
       })
     } catch (err) {
       window.alert(`Could not generate receipt: ${err.message}`)
+    }
+  }
+
+  async function handleDownloadTailorReceipts(order) {
+    try {
+      await generateTailorReceiptPdfs({
+        order,
+        customer,
+        items: itemsByOrder.get(order.id) ?? [],
+      })
+    } catch (err) {
+      window.alert(`Could not generate tailor receipts: ${err.message}`)
     }
   }
 
@@ -189,7 +201,8 @@ export default function CustomerDetailModal({ customer, onClose }) {
                           actions={[
                             { label: 'Edit', onClick: () => setOrderModal(o) },
                             ...(balance > 0 ? [{ label: 'Record Payment', onClick: () => setPaymentOrder(o) }] : []),
-                            { label: 'Download Receipt', onClick: () => handleDownloadReceipt(o) },
+                            { label: 'Download Customer Receipt', onClick: () => handleDownloadCustomerReceipt(o) },
+                            { label: 'Download Tailor Receipt(s)', onClick: () => handleDownloadTailorReceipts(o) },
                           ]}
                         />
                       </td>

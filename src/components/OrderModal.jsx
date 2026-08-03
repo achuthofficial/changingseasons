@@ -3,13 +3,13 @@ import { supabase } from '../lib/supabaseClient.js'
 import { IconX, IconImage } from './Icons.jsx'
 import PhoneInput from './PhoneInput.jsx'
 import { garmentTypes } from '../data/garmentTypes.js'
-import { measurementFields } from '../data/measurementFields.js'
+import { measurementFieldsFor } from '../data/measurementFields.js'
 import { useUsers } from '../hooks/useUsers.js'
 import { useOrders } from '../hooks/useOrders.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
 import PaymentModal from './PaymentModal.jsx'
-import { generateReceiptPdf } from '../utils/generateReceiptPdf.js'
+import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { itemsSummary } from '../utils/orderItems.js'
 import './OrderModal.css'
@@ -20,6 +20,22 @@ const paymentMethods = ['Cash', 'UPI', 'Card', 'Bank Transfer']
 
 let trialTempKey = 0
 let itemTempKey = 0
+
+function blankItem() {
+  itemTempKey -= 1
+  return {
+    _key: itemTempKey,
+    id: null,
+    garment_type: garmentTypes[0],
+    garment_type_other: '',
+    quantity: 1,
+    unit_price: '',
+    measurements: {},
+    design_image_url: null,
+    imageFile: null,
+    imagePreview: null,
+  }
+}
 
 export default function OrderModal({ order, initialCustomer, onClose, onSave }) {
   const isEdit = Boolean(order)
@@ -53,19 +69,19 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
   const [dueDate, setDueDate] = useState(order?.due_date ?? '')
   const [designerInstructions, setDesignerInstructions] = useState(order?.designer_instructions ?? '')
   const [orderStatus, setOrderStatus] = useState(order?.order_status ?? 'Pending')
-  const [measurements, setMeasurements] = useState(order?.measurements ?? {})
-
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(order?.design_image_url ?? null)
 
   const [trials, setTrials] = useState([])
   const trialsInitialized = useRef(false)
 
+  // Each item carries its own garment/qty/price AND its own measurements +
+  // design reference photo — different garments in the same order can need
+  // completely different measurements and designs.
   const [items, setItems] = useState([])
   const itemsInitialized = useRef(false)
 
   const [submitting, setSubmitting] = useState(false)
-  const [downloadingReceipt, setDownloadingReceipt] = useState(false)
+  const [downloadingCustomerReceipt, setDownloadingCustomerReceipt] = useState(false)
+  const [downloadingTailorReceipts, setDownloadingTailorReceipts] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -92,8 +108,15 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setItems(
       isEdit
-        ? allItems.filter((i) => i.order_id === order.id).map((i) => ({ ...i, _key: i.id }))
-        : [{ _key: --itemTempKey, id: null, garment_type: garmentTypes[0], garment_type_other: '', quantity: 1, unit_price: '' }],
+        ? allItems
+            .filter((i) => i.order_id === order.id)
+            .map((i) => ({
+              ...i,
+              _key: i.id,
+              imageFile: null,
+              imagePreview: i.design_image_url ?? null,
+            }))
+        : [blankItem()],
     )
   }, [isEdit, itemsLoading, allItems, order])
 
@@ -128,10 +151,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
     setCustomerQuery('')
   }
 
-  function updateMeasurement(key, value) {
-    setMeasurements((m) => ({ ...m, [key]: value }))
-  }
-
   function addTrialRow() {
     trialTempKey -= 1
     setTrials((t) => [...t, { _key: trialTempKey, id: null, trial_date: '', status: 'Scheduled', notes: '' }])
@@ -146,23 +165,29 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
   }
 
   function addItemRow() {
-    itemTempKey -= 1
-    setItems((i) => [...i, { _key: itemTempKey, id: null, garment_type: garmentTypes[0], garment_type_other: '', quantity: 1, unit_price: '' }])
+    setItems((i) => [...i, blankItem()])
   }
 
   function updateItem(key, field, value) {
     setItems((i) => i.map((row) => (row._key === key ? { ...row, [field]: value } : row)))
   }
 
-  function removeItem(key) {
-    setItems((i) => i.filter((row) => row._key !== key))
+  function updateItemMeasurement(key, field, value) {
+    setItems((i) =>
+      i.map((row) => (row._key === key ? { ...row, measurements: { ...row.measurements, [field]: value } } : row)),
+    )
   }
 
-  function handleImageChange(e) {
+  function handleItemImageChange(key, e) {
     const file = e.target.files?.[0]
     if (!file) return
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
+    setItems((i) =>
+      i.map((row) => (row._key === key ? { ...row, imageFile: file, imagePreview: URL.createObjectURL(file) } : row)),
+    )
+  }
+
+  function removeItem(key) {
+    setItems((i) => i.filter((row) => row._key !== key))
   }
 
   const computedTotal = useMemo(
@@ -185,33 +210,50 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
       ),
   )
 
-  async function handleDownloadReceipt() {
-    setDownloadingReceipt(true)
+  // Reflects the in-progress form state (not a re-fetch), so a receipt
+  // downloaded before hitting "Save Changes" matches what's on screen right
+  // now, including any not-yet-saved design photo (imagePreview covers both
+  // a freshly chosen file and the already-saved design_image_url).
+  function previewOrder() {
+    return {
+      ...order,
+      due_date: dueDate || null,
+      designer_instructions: designerInstructions.trim() || null,
+      order_status: orderStatus,
+      quoted_amount: computedTotal,
+      advance_paid: amountPaid,
+    }
+  }
+
+  async function handleDownloadCustomerReceipt() {
+    setDownloadingCustomerReceipt(true)
     setError(null)
     try {
-      // Reflects the in-progress form state (not a re-fetch), so a receipt
-      // downloaded before hitting "Save Changes" matches what's on screen
-      // right now — every field here, not just items/total.
-      const previewOrder = {
-        ...order,
-        due_date: dueDate || null,
-        designer_instructions: designerInstructions.trim() || null,
-        order_status: orderStatus,
-        measurements,
-        quoted_amount: computedTotal,
-        advance_paid: amountPaid,
-        design_image_url: imagePreview,
-      }
-      await generateReceiptPdf({
-        order: previewOrder,
+      await generateCustomerReceiptPdf({
+        order: previewOrder(),
         customer: selectedCustomer,
-        // eslint-disable-next-line no-unused-vars
-        items: items.map(({ _key, ...rest }) => rest),
+        items,
       })
     } catch (err) {
       setError(`Could not generate receipt: ${err.message}`)
     } finally {
-      setDownloadingReceipt(false)
+      setDownloadingCustomerReceipt(false)
+    }
+  }
+
+  async function handleDownloadTailorReceipts() {
+    setDownloadingTailorReceipts(true)
+    setError(null)
+    try {
+      await generateTailorReceiptPdfs({
+        order: previewOrder(),
+        customer: selectedCustomer,
+        items: items.map((i) => ({ ...i, design_image_url: i.imagePreview })),
+      })
+    } catch (err) {
+      setError(`Could not generate tailor receipts: ${err.message}`)
+    } finally {
+      setDownloadingTailorReceipts(false)
     }
   }
 
@@ -247,24 +289,28 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
       setCustomerMode('selected')
     }
 
-    let designImageUrl = order?.design_image_url ?? null
-
-    if (imageFile) {
-      const path = `${Date.now()}-${imageFile.name}`
-      const { error: uploadError } = await supabase.storage.from('order-designs').upload(path, imageFile)
-      if (uploadError) {
-        setError(uploadError.message)
-        setSubmitting(false)
-        return
+    // Upload each item's newly chosen design photo (if any) before writing
+    // order_items — items keep their existing design_image_url untouched
+    // when no new file was picked.
+    const itemsWithUploads = []
+    for (const i of items) {
+      let designImageUrl = i.design_image_url ?? null
+      if (i.imageFile) {
+        const path = `${Date.now()}-${i.imageFile.name}`
+        const { error: uploadError } = await supabase.storage.from('order-designs').upload(path, i.imageFile)
+        if (uploadError) {
+          setError(`Failed to upload design image: ${uploadError.message}`)
+          setSubmitting(false)
+          return
+        }
+        const { data: publicUrlData } = supabase.storage.from('order-designs').getPublicUrl(path)
+        designImageUrl = publicUrlData.publicUrl
       }
-      const { data: publicUrlData } = supabase.storage.from('order-designs').getPublicUrl(path)
-      designImageUrl = publicUrlData.publicUrl
+      itemsWithUploads.push({ ...i, design_image_url: designImageUrl })
     }
 
     const payload = {
       customer_id: finalCustomerId,
-      measurements,
-      design_image_url: designImageUrl,
       quoted_amount: computedTotal,
       // advance_paid is only ever set here on creation (an optional initial
       // advance) — editing an existing order never touches it, since
@@ -333,10 +379,10 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
     }
 
     const originalItems = isEdit ? allItems.filter((i) => i.order_id === order.id) : []
-    const currentItemIds = new Set(items.filter((i) => i.id).map((i) => i.id))
+    const currentItemIds = new Set(itemsWithUploads.filter((i) => i.id).map((i) => i.id))
     const removedItems = originalItems.filter((i) => !currentItemIds.has(i.id))
-    const itemsToInsert = items.filter((i) => !i.id)
-    const itemsToUpdate = items.filter((i) => i.id)
+    const itemsToInsert = itemsWithUploads.filter((i) => !i.id)
+    const itemsToUpdate = itemsWithUploads.filter((i) => i.id)
 
     if (removedItems.length > 0) {
       await supabase.from('order_items').delete().in('id', removedItems.map((i) => i.id))
@@ -349,6 +395,8 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
           garment_type_other: i.garment_type === 'Other' ? i.garment_type_other?.trim() || null : null,
           quantity: Number(i.quantity) || 1,
           unit_price: Number(i.unit_price) || 0,
+          measurements: i.measurements ?? {},
+          design_image_url: i.design_image_url,
         })),
       )
     }
@@ -360,6 +408,8 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
           garment_type_other: i.garment_type === 'Other' ? i.garment_type_other?.trim() || null : null,
           quantity: Number(i.quantity) || 1,
           unit_price: Number(i.unit_price) || 0,
+          measurements: i.measurements ?? {},
+          design_image_url: i.design_image_url,
         })
         .eq('id', i.id)
     }
@@ -453,6 +503,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
             </div>
 
             <div className="modal-section-title">Items</div>
+            <p className="order-items-hint">Each item has its own design photo and measurements below it.</p>
             <div className="order-items">
               {items.map((i) => (
                 <div className="order-item-row-group" key={i._key}>
@@ -495,6 +546,39 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
                       onChange={(e) => updateItem(i._key, 'garment_type_other', e.target.value)}
                     />
                   )}
+
+                  <div className="order-item-extra">
+                    <label className="modal-field">
+                      <span>Design reference photo</span>
+                      <div className="order-image-upload">
+                        {i.imagePreview ? (
+                          <img src={i.imagePreview} alt="Design reference" className="order-image-preview" />
+                        ) : (
+                          <div className="order-image-placeholder"><IconImage size={18} /></div>
+                        )}
+                        <label className="btn btn-ghost order-image-btn">
+                          {i.imagePreview ? 'Replace image' : 'Upload image'}
+                          <input type="file" accept="image/*" onChange={(e) => handleItemImageChange(i._key, e)} hidden />
+                        </label>
+                      </div>
+                    </label>
+
+                    <div className="modal-field">
+                      <span>Measurements</span>
+                      <div className="order-measurements-grid">
+                        {measurementFieldsFor(i.garment_type).map((f) => (
+                          <label className="modal-field" key={f.key}>
+                            <span>{f.label}</span>
+                            <input
+                              type="text"
+                              value={i.measurements?.[f.key] ?? ''}
+                              onChange={(e) => updateItemMeasurement(i._key, f.key, e.target.value)}
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
               {items.length === 0 && <p className="empty-row">No items added yet.</p>}
@@ -569,35 +653,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
             </label>
 
             <label className="modal-field">
-              <span>Design reference photo</span>
-              <div className="order-image-upload">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Design reference" className="order-image-preview" />
-                ) : (
-                  <div className="order-image-placeholder"><IconImage size={22} /></div>
-                )}
-                <label className="btn btn-ghost order-image-btn">
-                  {imagePreview ? 'Replace image' : 'Upload image'}
-                  <input type="file" accept="image/*" onChange={handleImageChange} hidden />
-                </label>
-              </div>
-            </label>
-
-            <div className="modal-section-title">Measurements</div>
-            <div className="order-measurements-grid">
-              {measurementFields.map((f) => (
-                <label className="modal-field" key={f.key}>
-                  <span>{f.label}</span>
-                  <input
-                    type="text"
-                    value={measurements[f.key] ?? ''}
-                    onChange={(e) => updateMeasurement(f.key, e.target.value)}
-                  />
-                </label>
-              ))}
-            </div>
-
-            <label className="modal-field">
               <span>Order status</span>
               <select value={orderStatus} onChange={(e) => setOrderStatus(e.target.value)}>
                 {orderStatuses.map((s) => (
@@ -642,14 +697,24 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
 
           <div className="modal-footer">
             {isEdit && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={handleDownloadReceipt}
-                disabled={downloadingReceipt}
-              >
-                {downloadingReceipt ? 'Preparing...' : 'Download Receipt'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={handleDownloadCustomerReceipt}
+                  disabled={downloadingCustomerReceipt}
+                >
+                  {downloadingCustomerReceipt ? 'Preparing...' : 'Download Customer Receipt'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={handleDownloadTailorReceipts}
+                  disabled={downloadingTailorReceipts}
+                >
+                  {downloadingTailorReceipts ? 'Preparing...' : 'Download Tailor Receipt(s)'}
+                </button>
+              </>
             )}
             <div className="modal-footer-spacer" />
             <button type="button" className="btn btn-ghost" onClick={onClose}>

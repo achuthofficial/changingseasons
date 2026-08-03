@@ -1,0 +1,27 @@
+-- Moves measurements and the design reference photo from being one shared
+-- set per ORDER to one set per ITEM (order_items) — a single order can hold
+-- multiple different garments (e.g. a blouse and a lehenga in one order),
+-- each needing its own measurements and its own design photo, not one set
+-- shared across all of them. Run after supabase-order-items-schema.sql.txt.
+--
+-- Order of operations matters here, same reasoning as the original
+-- order_items migration: add the new columns, backfill them, THEN drop the
+-- old order-level columns. Dropping first would lose the data.
+
+alter table public.order_items add column if not exists measurements jsonb not null default '{}'::jsonb;
+alter table public.order_items add column if not exists design_image_url text;
+
+-- Backfill: every existing item in an order inherits that order's current
+-- shared measurements/design photo, so nothing is lost. An order with
+-- multiple items ends up with the same measurements/photo copied onto each
+-- of its items — from here the admin can go edit each item's copy
+-- separately if they actually differ.
+update public.order_items oi
+set
+  measurements = o.measurements,
+  design_image_url = o.design_image_url
+from public.orders o
+where o.id = oi.order_id;
+
+alter table public.orders drop column if exists measurements;
+alter table public.orders drop column if exists design_image_url;
