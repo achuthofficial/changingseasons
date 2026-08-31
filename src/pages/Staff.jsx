@@ -4,6 +4,7 @@ import RowMenu from '../components/RowMenu.jsx'
 import StaffModal from '../components/StaffModal.jsx'
 import { IconStaff, IconX } from '../components/Icons.jsx'
 import { useStaff } from '../hooks/useStaff.js'
+import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
 import { supabase } from '../lib/supabaseClient.js'
 import './Staff.css'
 
@@ -13,11 +14,19 @@ export default function Staff() {
   const [previewPhoto, setPreviewPhoto] = useState(null)
 
   async function handleDelete(member) {
-    const ok = window.confirm(`Remove ${member.name} from staff? Their past orders will keep this assignment on record.`)
+    const ok = window.confirm(
+      `Move ${member.name} to Recently Deleted? You can restore them for the next ${RETENTION_MINUTES} minutes.`,
+    )
     if (!ok) return
+    const { error } = await supabase
+      .from('staff')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', member.id)
+    if (error) {
+      window.alert(`Failed to remove staff member: ${error.message}`)
+      return
+    }
     mutate((current) => current.filter((s) => s.id !== member.id))
-    const { error } = await supabase.from('staff').delete().eq('id', member.id)
-    if (error) window.alert(`Failed to remove staff member: ${error.message}`)
   }
 
   return (

@@ -6,6 +6,7 @@ import OrderModal from '../components/OrderModal.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import { IconSearch, IconWhatsApp } from '../components/Icons.jsx'
 import { useOrders } from '../hooks/useOrders.js'
+import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
 import { useUsers } from '../hooks/useUsers.js'
 import { useOrderTrials } from '../hooks/useOrderTrials.js'
 import { useOrderItems } from '../hooks/useOrderItems.js'
@@ -98,16 +99,29 @@ export default function Orders() {
     })
   }, [orders, tab, dueFilter, query, customerMap, itemsByOrder])
 
+  // Soft delete — the order moves to Recently Deleted and can be restored
+  // for RETENTION_MINUTES. A database trigger takes its linked transactions
+  // with it; order_items and order_trials stay attached to the hidden order
+  // and come back with it untouched.
   async function handleDelete(order) {
-    // The database cascades order_items, order_trials, and now transactions
-    // (payment history) when the order row itself is deleted.
     const txCount = transactions.filter((t) => t.order_id === order.id).length
-    const warning = txCount > 0 ? ` This will also delete its ${txCount} linked transaction(s).` : ''
-    const ok = window.confirm(`Delete order ORD-${order.id}?${warning} This cannot be undone.`)
+    const warning = txCount > 0 ? ` Its ${txCount} linked transaction(s) will go with it.` : ''
+    const ok = window.confirm(
+      `Move order ORD-${order.id} to Recently Deleted?${warning} You can restore it for the next ${RETENTION_MINUTES} minutes.`,
+    )
     if (!ok) return
+    // Written first, then removed from the list. Removing optimistically and
+    // failing afterwards would leave the row missing from the screen while
+    // it still very much exists in the database.
+    const { error } = await supabase
+      .from('orders')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', order.id)
+    if (error) {
+      window.alert(`Failed to delete order: ${error.message}`)
+      return
+    }
     mutate((current) => current.filter((o) => o.id !== order.id))
-    const { error } = await supabase.from('orders').delete().eq('id', order.id)
-    if (error) window.alert(`Failed to delete order: ${error.message}`)
   }
 
   async function handleDownloadCustomerReceipt(order) {
@@ -211,6 +225,21 @@ export default function Orders() {
                 const latestTrial = latestTrialByOrder.get(o.id)
                 const orderItems = itemsByOrder.get(o.id) ?? []
                 const balance = Number(o.quoted_amount ?? 0) - Number(o.advance_paid ?? 0)
+                // null when the customer has no phone on file, or one that
+                // can't make a dialable number — no button rather than a
+                // link that opens the wrong chat.
+                const whatsAppLink =
+                  o.order_status === 'Ready'
+                    ? buildWhatsAppLink(
+                        customer?.phone,
+                        orderReadyMessage({
+                          customerName: customer?.name,
+                          orderId: o.id,
+                          items: orderItems,
+                          order: o,
+                        }),
+                      )
+                    : null
                 return (
                   <tr key={o.id}>
                     <td className="mono">ORD-{o.id}</td>
@@ -240,17 +269,10 @@ export default function Orders() {
                           options={orderStatuses}
                           onSelect={(next) => handleOrderStatusChange(o, next)}
                         />
-                        {o.order_status === 'Ready' && customer?.phone && (
+                        {whatsAppLink && (
                           <a
                             className="whatsapp-send-btn"
-                            href={buildWhatsAppLink(
-                              customer.phone,
-                              orderReadyMessage({
-                                customerName: customer.name,
-                                orderId: o.id,
-                                itemsSummary: itemsSummary(orderItems),
-                              }),
-                            )}
+                            href={whatsAppLink}
                             target="_blank"
                             rel="noopener noreferrer"
                           >

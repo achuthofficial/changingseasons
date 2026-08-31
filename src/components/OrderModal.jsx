@@ -12,6 +12,7 @@ import PaymentModal from './PaymentModal.jsx'
 import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { itemsSummary } from '../utils/orderItems.js'
+import { buildStoragePath, removeStorageObject, ORDER_DESIGN_BUCKET } from '../utils/storageCleanup.js'
 import './OrderModal.css'
 
 const orderStatuses = ['Pending', 'In Progress', 'Ready', 'Delivered', 'Cancelled']
@@ -293,17 +294,24 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
     // order_items — items keep their existing design_image_url untouched
     // when no new file was picked.
     const itemsWithUploads = []
+    // Images that nothing will point at once this save goes through. Removed
+    // only after every write has succeeded — deleting earlier would destroy
+    // the picture an order still references if a later step failed.
+    const orphanedImageUrls = []
     for (const i of items) {
       let designImageUrl = i.design_image_url ?? null
       if (i.imageFile) {
-        const path = `${Date.now()}-${i.imageFile.name}`
-        const { error: uploadError } = await supabase.storage.from('order-designs').upload(path, i.imageFile)
+        const path = buildStoragePath(i.imageFile.name)
+        const { error: uploadError } = await supabase.storage
+          .from(ORDER_DESIGN_BUCKET)
+          .upload(path, i.imageFile)
         if (uploadError) {
           setError(`Failed to upload design image: ${uploadError.message}`)
           setSubmitting(false)
           return
         }
-        const { data: publicUrlData } = supabase.storage.from('order-designs').getPublicUrl(path)
+        const { data: publicUrlData } = supabase.storage.from(ORDER_DESIGN_BUCKET).getPublicUrl(path)
+        if (designImageUrl) orphanedImageUrls.push(designImageUrl)
         designImageUrl = publicUrlData.publicUrl
       }
       itemsWithUploads.push({ ...i, design_image_url: designImageUrl })
@@ -385,6 +393,10 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
     const itemsToUpdate = itemsWithUploads.filter((i) => i.id)
 
     if (removedItems.length > 0) {
+      // An item deleted out of the order takes its design photo with it.
+      for (const i of removedItems) {
+        if (i.design_image_url) orphanedImageUrls.push(i.design_image_url)
+      }
       await supabase.from('order_items').delete().in('id', removedItems.map((i) => i.id))
     }
     if (itemsToInsert.length > 0) {
@@ -412,6 +424,10 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
           design_image_url: i.design_image_url,
         })
         .eq('id', i.id)
+    }
+
+    for (const url of orphanedImageUrls) {
+      await removeStorageObject(url, ORDER_DESIGN_BUCKET)
     }
 
     setSubmitting(false)

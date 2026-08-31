@@ -6,6 +6,7 @@ export function useUsers() {
   const { rows, loading, error, mutate } = useRealtimeTable('users', {
     orderBy: 'created_at',
     ascending: false,
+    excludeDeleted: true,
   })
 
   return { users: rows, loading, error, mutate }

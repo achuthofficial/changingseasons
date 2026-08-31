@@ -150,6 +150,20 @@ export default function CustomerDetailModal({ customer, onClose }) {
                   const orderItems = itemsByOrder.get(o.id) ?? []
                   const balance = Number(o.quoted_amount ?? 0) - Number(o.advance_paid ?? 0)
                   const latestTrial = latestTrialByOrder.get(o.id)
+                  // null when this customer has no usable phone number —
+                  // see buildWhatsAppLink.
+                  const whatsAppLink =
+                    o.order_status === 'Ready'
+                      ? buildWhatsAppLink(
+                          customer.phone,
+                          orderReadyMessage({
+                            customerName: customer.name,
+                            orderId: o.id,
+                            items: orderItems,
+                            order: o,
+                          }),
+                        )
+                      : null
                   return (
                     <tr key={o.id}>
                       <td className="mono">ORD-{o.id}</td>
@@ -176,17 +190,10 @@ export default function CustomerDetailModal({ customer, onClose }) {
                             options={orderStatuses}
                             onSelect={(next) => handleOrderStatusChange(o, next)}
                           />
-                          {o.order_status === 'Ready' && customer.phone && (
+                          {whatsAppLink && (
                             <a
                               className="whatsapp-send-btn"
-                              href={buildWhatsAppLink(
-                                customer.phone,
-                                orderReadyMessage({
-                                  customerName: customer.name,
-                                  orderId: o.id,
-                                  itemsSummary: itemsSummary(orderItems),
-                                }),
-                              )}
+                              href={whatsAppLink}
                               target="_blank"
                               rel="noopener noreferrer"
                             >

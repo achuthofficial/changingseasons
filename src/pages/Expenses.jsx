@@ -5,6 +5,7 @@ import RowMenu from '../components/RowMenu.jsx'
 import ExpenseModal from '../components/ExpenseModal.jsx'
 import { IconSearch, IconRupee, IconCard, IconWallet, IconRefund } from '../components/Icons.jsx'
 import { useExpenses } from '../hooks/useExpenses.js'
+import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
 import { expenseCategories, incomeCategories } from '../data/expenseCategories.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { formatINR } from '../utils/format.js'
@@ -73,11 +74,20 @@ export default function Expenses() {
   }, [expenses, tab, category, query])
 
   async function handleDelete(entry) {
-    const ok = window.confirm(`Delete this ${entry.entry_type.toLowerCase()} entry (${entry.category})? This cannot be undone.`)
+    const ok = window.confirm(
+      `Move this ${entry.entry_type.toLowerCase()} entry (${entry.category}) to Recently Deleted? ` +
+        `You can restore it for the next ${RETENTION_MINUTES} minutes.`,
+    )
     if (!ok) return
+    const { error } = await supabase
+      .from('expenses')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', entry.id)
+    if (error) {
+      window.alert(`Failed to delete entry: ${error.message}`)
+      return
+    }
     mutate((current) => current.filter((e) => e.id !== entry.id))
-    const { error } = await supabase.from('expenses').delete().eq('id', entry.id)
-    if (error) window.alert(`Failed to delete entry: ${error.message}`)
   }
 
   return (
@@ -92,16 +102,10 @@ export default function Expenses() {
       </div>
 
       <div className="stat-grid">
-        <StatCard icon={IconRupee} label="Today's Expenses" value={formatINR(stats.todayExpense)} delta={0} trend="up" />
-        <StatCard icon={IconCard} label="This Month's Expenses" value={formatINR(stats.monthExpense)} delta={0} trend="up" />
-        <StatCard icon={IconWallet} label="This Month's Other Income" value={formatINR(stats.monthIncome)} delta={0} trend="up" />
-        <StatCard
-          icon={IconRefund}
-          label="Net This Month"
-          value={formatINR(stats.netMonth)}
-          delta={0}
-          trend={stats.netMonth >= 0 ? 'up' : 'down'}
-        />
+        <StatCard icon={IconRupee} label="Today's Expenses" value={formatINR(stats.todayExpense)} />
+        <StatCard icon={IconCard} label="This Month's Expenses" value={formatINR(stats.monthExpense)} />
+        <StatCard icon={IconWallet} label="This Month's Other Income" value={formatINR(stats.monthIncome)} />
+        <StatCard icon={IconRefund} label="Net This Month" value={formatINR(stats.netMonth)} />
       </div>
 
       <section className="card">

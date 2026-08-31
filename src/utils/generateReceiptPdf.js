@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { measurementFields } from '../data/measurementFields.js'
+import { shop } from '../data/shop.js'
 import { formatCustomerId } from './format.js'
 import { garmentLabel } from './orderItems.js'
 
@@ -41,13 +42,13 @@ function loadImageDimensions(dataUrl) {
 function drawShopHeader(doc, { margin, y, order }) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(18)
-  doc.text('Changing Seasons', margin, y)
+  doc.text(shop.name, margin, y)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   y += 16
-  doc.text('By Sandhya Reddy — Road No. 10, Banjara Hills, SB Khan building, Hyderabad', margin, y)
+  doc.text(`${shop.tagline} — ${shop.address}`, margin, y)
   y += 12
-  doc.text('9705700027 / 8008077077', margin, y)
+  doc.text(`${shop.phone} / ${shop.alternatePhone}`, margin, y)
 
   const pageWidth = doc.internal.pageSize.getWidth()
   doc.setFont('helvetica', 'bold')
@@ -181,12 +182,13 @@ export async function generateCustomerReceiptPdf({ order, customer, items = [] }
 }
 
 // Builds and downloads one separate PDF per item — a tailor's working job
-// card for that specific garment: who it's for (name/phone, so the tailor
-// knows whose order this is), the due date, the shop's general instructions
-// for the order, and that item's own measurements and design reference
-// photo. Each item can have completely different measurements/design from
-// the others in the same order, so each gets its own document rather than
-// one shared sheet.
+// card for that specific garment: who it's for (name + customer ID, so the
+// tailor knows whose order this is — deliberately no phone number, the
+// tailor has no reason to contact the customer directly), the due date, the
+// shop's general instructions for the order, and that item's own
+// measurements and design reference photo. Each item can have completely
+// different measurements/design from the others in the same order, so each
+// gets its own document rather than one shared sheet.
 export async function generateTailorReceiptPdfs({ order, customer, items = [] }) {
   for (let index = 0; index < items.length; index++) {
     const item = items[index]
@@ -221,12 +223,6 @@ export async function generateTailorReceiptPdfs({ order, customer, items = [] })
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.text(`${customer?.name ?? 'Unknown'}  (ID ${customer ? formatCustomerId(customer.id) : '-'})`, margin, y)
-    y += 14
-    doc.text(`Phone: ${customer?.phone ?? '-'}`, margin, y)
-    if (customer?.alternate_phone) {
-      y += 14
-      doc.text(`Alternate phone: ${customer.alternate_phone}`, margin, y)
-    }
     y += 14
     doc.text(`Due date: ${order.due_date ?? '-'}`, margin, y)
 

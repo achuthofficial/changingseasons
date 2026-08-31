@@ -8,6 +8,7 @@ export function useExpenses() {
   const { rows, loading, error, mutate } = useRealtimeTable('expenses', {
     orderBy: 'entry_date',
     ascending: false,
+    excludeDeleted: true,
   })
 
   return { expenses: rows, loading, error, mutate }

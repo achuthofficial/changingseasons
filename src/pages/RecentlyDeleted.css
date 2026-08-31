@@ -1,0 +1,63 @@
+.page-header-sub {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.deleted-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  color: var(--danger-text);
+  background: var(--danger-bg);
+  border: 1px solid transparent;
+}
+
+.deleted-warning strong {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.deleted-warning p {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.deleted-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.deleted-countdown.is-urgent {
+  color: var(--danger-text);
+}
+
+.deleted-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.deleted-restore-btn,
+.deleted-purge-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.deleted-purge-btn {
+  color: var(--danger-text);
+}
+
+.deleted-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}

@@ -5,6 +5,7 @@ export function useTransactions() {
   const { rows, loading, error, mutate } = useRealtimeTable('transactions', {
     orderBy: 'created_at',
     ascending: false,
+    excludeDeleted: true,
   })
 
   return { transactions: rows, loading, error, mutate }

@@ -21,6 +21,7 @@ const pageMeta = {
   '/transactions': { title: 'Transactions', subtitle: 'Track orders and payments' },
   '/expenses': { title: 'Expenses', subtitle: 'Daily spending and income from outside orders' },
   '/history': { title: 'History', subtitle: 'Recent activity across the store' },
+  '/recently-deleted': { title: 'Recently Deleted', subtitle: 'Restore records deleted in the last hour' },
 }
 
 export default function Navbar({ onMenuClick, theme, onToggleTheme }) {

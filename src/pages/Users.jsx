@@ -6,6 +6,7 @@ import CustomerDetailModal from '../components/CustomerDetailModal.jsx'
 import RowMenu from '../components/RowMenu.jsx'
 import { IconSearch, IconBag } from '../components/Icons.jsx'
 import { useUsers } from '../hooks/useUsers.js'
+import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
 import { useOrders } from '../hooks/useOrders.js'
 import { useTransactions } from '../hooks/useTransactions.js'
 import { supabase } from '../lib/supabaseClient.js'
@@ -82,6 +83,11 @@ export default function Users() {
     })
   }, [users, query])
 
+  // Soft delete — database triggers cascade deleted_at down to this
+  // customer's orders and those orders' transactions, all stamped with the
+  // same timestamp. That timestamp acts as a batch id, so restoring the
+  // customer brings back exactly what went away with them and leaves
+  // anything deleted separately beforehand in the bin.
   async function handleDelete(u) {
     const customerOrderIds = new Set(orders.filter((o) => o.customer_id === u.id).map((o) => o.id))
     const orderCount = customerOrderIds.size
@@ -89,12 +95,20 @@ export default function Users() {
     const parts = []
     if (orderCount > 0) parts.push(`${orderCount} order(s)`)
     if (txCount > 0) parts.push(`${txCount} transaction(s)`)
-    const warning = parts.length > 0 ? ` This will also delete their ${parts.join(' and ')}.` : ''
-    const ok = window.confirm(`Delete customer ${u.name}?${warning} This cannot be undone.`)
+    const warning = parts.length > 0 ? ` Their ${parts.join(' and ')} will go with them.` : ''
+    const ok = window.confirm(
+      `Move customer ${u.name} to Recently Deleted?${warning} You can restore them for the next ${RETENTION_MINUTES} minutes.`,
+    )
     if (!ok) return
+    const { error } = await supabase
+      .from('users')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', u.id)
+    if (error) {
+      window.alert(`Failed to delete customer: ${error.message}`)
+      return
+    }
     mutate((current) => current.filter((c) => c.id !== u.id))
-    const { error } = await supabase.from('users').delete().eq('id', u.id)
-    if (error) window.alert(`Failed to delete customer: ${error.message}`)
   }
 
   return (

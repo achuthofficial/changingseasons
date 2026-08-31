@@ -84,14 +84,14 @@ declare
 begin
   select name into v_customer_name from public.users where id = new.customer_id;
 
-  insert into public.notifications (message, notify_email)
+  insert into public.notifications (message)
   values (format(
     'New order — ORD-%s for %s (₹%s)%s',
     new.id,
     coalesce(v_customer_name, 'Unknown customer'),
     to_char(new.quoted_amount, 'FM999999999'),
     case when new.due_date is not null then format(', due %s', new.due_date) else '' end
-  ), true);
+  ));
   return new;
 end;
 $$;

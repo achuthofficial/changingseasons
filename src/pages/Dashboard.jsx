@@ -109,10 +109,10 @@ export default function Dashboard() {
   return (
     <div>
       <div className="stat-grid">
-        <StatCard icon={IconRupee} label="Total Revenue" value={formatINR(stats.revenue)} delta={0} trend="up" />
-        <StatCard icon={IconBag} label="Orders" value={stats.orders.toLocaleString('en-IN')} delta={0} trend="up" />
-        <StatCard icon={IconUsers} label="Customers" value={stats.customers.toLocaleString('en-IN')} delta={0} trend="up" />
-        <StatCard icon={IconCard} label="Avg. Order Value" value={formatINR(stats.avgOrder)} delta={0} trend="up" />
+        <StatCard icon={IconRupee} label="Total Revenue" value={formatINR(stats.revenue)} />
+        <StatCard icon={IconBag} label="Orders" value={stats.orders.toLocaleString('en-IN')} />
+        <StatCard icon={IconUsers} label="Customers" value={stats.customers.toLocaleString('en-IN')} />
+        <StatCard icon={IconCard} label="Avg. Order Value" value={formatINR(stats.avgOrder)} />
       </div>
 
       <div className="dash-grid">

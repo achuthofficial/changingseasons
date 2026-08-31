@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient.js'
 import { IconX, IconImage } from './Icons.jsx'
+import { buildStoragePath, removeStorageObject, STAFF_PHOTO_BUCKET } from '../utils/storageCleanup.js'
 import './StaffModal.css'
 
 export default function StaffModal({ staffMember, onClose, onSave }) {
@@ -30,17 +31,20 @@ export default function StaffModal({ staffMember, onClose, onSave }) {
     setSubmitting(true)
     setError(null)
 
-    let photoUrl = staffMember?.photo_url ?? null
+    const previousPhotoUrl = staffMember?.photo_url ?? null
+    let photoUrl = previousPhotoUrl
 
     if (photoFile) {
-      const path = `${Date.now()}-${photoFile.name}`
-      const { error: uploadError } = await supabase.storage.from('staff-photos').upload(path, photoFile)
+      const path = buildStoragePath(photoFile.name)
+      const { error: uploadError } = await supabase.storage
+        .from(STAFF_PHOTO_BUCKET)
+        .upload(path, photoFile)
       if (uploadError) {
         setError(uploadError.message)
         setSubmitting(false)
         return
       }
-      const { data: publicUrlData } = supabase.storage.from('staff-photos').getPublicUrl(path)
+      const { data: publicUrlData } = supabase.storage.from(STAFF_PHOTO_BUCKET).getPublicUrl(path)
       photoUrl = publicUrlData.publicUrl
     }
 
@@ -62,6 +66,13 @@ export default function StaffModal({ staffMember, onClose, onSave }) {
       setError(saveError.message)
       setSubmitting(false)
       return
+    }
+
+    // The photo this one replaced is now referenced by nothing. Done after
+    // the row is safely saved, so a failed save never destroys the image
+    // the record still points at.
+    if (photoFile && previousPhotoUrl && previousPhotoUrl !== photoUrl) {
+      await removeStorageObject(previousPhotoUrl, STAFF_PHOTO_BUCKET)
     }
 
     setSubmitting(false)

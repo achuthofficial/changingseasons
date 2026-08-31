@@ -3,7 +3,7 @@ import Badge from '../components/Badge.jsx'
 import RowMenu from '../components/RowMenu.jsx'
 import { IconSearch } from '../components/Icons.jsx'
 import { useTransactions } from '../hooks/useTransactions.js'
-import { useOrders } from '../hooks/useOrders.js'
+import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { formatINR } from '../utils/format.js'
 import './Transactions.css'
@@ -12,7 +12,6 @@ const tabs = ['All', 'Completed', 'Pending', 'Refunded', 'Failed']
 
 export default function Transactions() {
   const { transactions, mutate } = useTransactions()
-  const { orders } = useOrders()
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('All')
 
@@ -29,35 +28,27 @@ export default function Transactions() {
     })
   }, [transactions, query, tab])
 
-  // A Completed, order-linked transaction is what put money onto that
-  // order's advance_paid in the first place (PaymentModal / the initial
-  // advance on order creation) — deleting the record without reversing that
-  // would leave the order's balance permanently understated.
+  // Soft delete. Reversing the payment back off orders.advance_paid used to
+  // happen here, as a second request that could fail on its own and leave
+  // the order's balance wrong. It is now a database trigger, so it holds on
+  // every path — including a payment swept up in a customer- or order-level
+  // cascade — and re-applies automatically when the record is restored.
   async function handleDelete(t) {
-    const ok = window.confirm(`Delete transaction TXN-${t.id}? This cannot be undone.`)
+    const ok = window.confirm(
+      `Move transaction TXN-${t.id} to Recently Deleted? You can restore it for the next ${RETENTION_MINUTES} minutes.`,
+    )
     if (!ok) return
 
-    mutate((current) => current.filter((row) => row.id !== t.id))
-    const { error } = await supabase.from('transactions').delete().eq('id', t.id)
+    const { error } = await supabase
+      .from('transactions')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', t.id)
 
     if (error) {
       window.alert(`Failed to delete transaction: ${error.message}`)
       return
     }
-
-    if (t.order_id && t.status === 'Completed') {
-      const order = orders.find((o) => o.id === t.order_id)
-      if (order) {
-        const revertedAdvance = Math.max(0, Number(order.advance_paid ?? 0) - Number(t.amount))
-        const { error: orderError } = await supabase
-          .from('orders')
-          .update({ advance_paid: revertedAdvance })
-          .eq('id', t.order_id)
-        if (orderError) {
-          window.alert(`Transaction deleted, but updating the order's balance failed: ${orderError.message}`)
-        }
-      }
-    }
+    mutate((current) => current.filter((row) => row.id !== t.id))
   }
 
   return (

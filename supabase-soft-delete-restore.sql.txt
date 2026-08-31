@@ -1,0 +1,174 @@
+-- Recently Deleted / restore. Every delete in the admin UI becomes a *soft*
+-- delete: the row stays in its own table with `deleted_at` set, disappears
+-- from the app, and can be restored for 60 minutes. After that a scheduled
+-- job removes it for real. Run after the other schema files.
+--
+-- Why a deleted_at column per table rather than a separate "recycle bin"
+-- table holding copied rows: identity primary keys can't be re-inserted
+-- with their original id without OVERRIDING SYSTEM VALUE, so a copy-out /
+-- copy-back bin would hand every restored record a brand new id and break
+-- every foreign key pointing at it. Leaving the row where it is keeps all
+-- ids, relationships and history intact, and restore becomes one UPDATE.
+--
+-- THE RETENTION WINDOW IS DEFINED TWICE — here (purge_deleted_records
+-- below) and in src/hooks/useDeletedRecords.js (RETENTION_MINUTES). Change
+-- both together or the UI will count down to a time the job doesn't honour.
+
+alter table public.users        add column if not exists deleted_at timestamptz;
+alter table public.orders       add column if not exists deleted_at timestamptz;
+alter table public.staff        add column if not exists deleted_at timestamptz;
+alter table public.transactions add column if not exists deleted_at timestamptz;
+alter table public.expenses     add column if not exists deleted_at timestamptz;
+
+-- Partial indexes: every normal screen in the app queries
+-- "where deleted_at is null", and the Recently Deleted screen queries the
+-- handful of rows where it isn't. Indexing only the non-null side keeps
+-- these tiny — deleted rows never outlive an hour.
+create index if not exists idx_users_deleted_at        on public.users(deleted_at)        where deleted_at is not null;
+create index if not exists idx_orders_deleted_at       on public.orders(deleted_at)       where deleted_at is not null;
+create index if not exists idx_staff_deleted_at        on public.staff(deleted_at)        where deleted_at is not null;
+create index if not exists idx_transactions_deleted_at on public.transactions(deleted_at) where deleted_at is not null;
+create index if not exists idx_expenses_deleted_at     on public.expenses(deleted_at)     where deleted_at is not null;
+
+-- ---------------------------------------------------------------------
+-- Cascading the soft delete
+-- ---------------------------------------------------------------------
+-- Hard deletes cascade through foreign keys automatically; soft deletes
+-- have to be cascaded by hand, or deleting a customer would leave their
+-- orders and payments on screen with no customer behind them.
+--
+-- The whole cascade shares ONE timestamp — the parent's deleted_at. That
+-- timestamp is the batch id: restoring the parent restores exactly the rows
+-- that went away with it, and leaves alone anything deleted separately
+-- beforehand. Delete order #5 on its own, then delete its customer, then
+-- restore the customer: orders #6 and #7 come back, #5 correctly stays in
+-- the bin with its own earlier timestamp.
+
+create or replace function public.cascade_soft_delete_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.deleted_at is not null and old.deleted_at is null then
+    update public.transactions
+      set deleted_at = new.deleted_at
+      where order_id = new.id and deleted_at is null;
+  elsif new.deleted_at is null and old.deleted_at is not null then
+    update public.transactions
+      set deleted_at = null
+      where order_id = new.id and deleted_at = old.deleted_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cascade_soft_delete_order on public.orders;
+create trigger trg_cascade_soft_delete_order
+  after update of deleted_at on public.orders
+  for each row execute function public.cascade_soft_delete_order();
+
+create or replace function public.cascade_soft_delete_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.deleted_at is not null and old.deleted_at is null then
+    update public.orders
+      set deleted_at = new.deleted_at
+      where customer_id = new.id and deleted_at is null;
+  elsif new.deleted_at is null and old.deleted_at is not null then
+    update public.orders
+      set deleted_at = null
+      where customer_id = new.id and deleted_at = old.deleted_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cascade_soft_delete_user on public.users;
+create trigger trg_cascade_soft_delete_user
+  after update of deleted_at on public.users
+  for each row execute function public.cascade_soft_delete_user();
+
+-- ---------------------------------------------------------------------
+-- Keeping orders.advance_paid honest
+-- ---------------------------------------------------------------------
+-- A Completed, order-linked transaction is what put money onto that order's
+-- advance_paid. Hiding the payment without reversing it would leave the
+-- order's balance permanently understated — and restoring it without
+-- re-applying would double-count. The app used to do this by hand in
+-- Transactions.jsx after a hard delete; as a trigger it now holds for every
+-- path, including a payment swept up in a customer- or order-level cascade.
+create or replace function public.sync_advance_on_transaction_soft_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status = 'Completed' and new.order_id is not null then
+    if new.deleted_at is not null and old.deleted_at is null then
+      update public.orders
+        set advance_paid = greatest(0, coalesce(advance_paid, 0) - coalesce(new.amount, 0))
+        where id = new.order_id;
+    elsif new.deleted_at is null and old.deleted_at is not null then
+      update public.orders
+        set advance_paid = coalesce(advance_paid, 0) + coalesce(new.amount, 0)
+        where id = new.order_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_sync_advance_on_transaction_soft_delete on public.transactions;
+create trigger trg_sync_advance_on_transaction_soft_delete
+  after update of deleted_at on public.transactions
+  for each row execute function public.sync_advance_on_transaction_soft_delete();
+
+-- ---------------------------------------------------------------------
+-- The 60-minute purge
+-- ---------------------------------------------------------------------
+-- Children before parents. Not strictly required (the foreign keys cascade
+-- on hard delete) but it keeps the row counts below meaningful, and means a
+-- transaction whose order is being purged is already gone rather than being
+-- swept along silently.
+create or replace function public.purge_deleted_records()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cutoff timestamptz := now() - interval '60 minutes';
+begin
+  delete from public.transactions where deleted_at is not null and deleted_at < cutoff;
+  delete from public.expenses     where deleted_at is not null and deleted_at < cutoff;
+  delete from public.staff        where deleted_at is not null and deleted_at < cutoff;
+  delete from public.orders       where deleted_at is not null and deleted_at < cutoff;
+  delete from public.users        where deleted_at is not null and deleted_at < cutoff;
+end;
+$$;
+
+-- Requires pg_cron, already enabled for the daily reminders job.
+create extension if not exists pg_cron;
+
+do $$
+begin
+  if not exists (select 1 from cron.job where jobname = 'boutique-purge-deleted') then
+    perform cron.schedule(
+      'boutique-purge-deleted',
+      '*/5 * * * *', -- every 5 minutes
+      $cron$select public.purge_deleted_records();$cron$
+    );
+  end if;
+end $$;
+
+-- The job runs every 5 minutes, so a record is purged somewhere between 60
+-- and 65 minutes after deletion. The app doesn't rely on that timing: it
+-- hides anything already past 60 minutes itself, so the countdown a user
+-- sees is exact regardless of when the job next fires.

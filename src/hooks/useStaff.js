@@ -5,6 +5,7 @@ export function useStaff() {
   const { rows, loading, error, mutate } = useRealtimeTable('staff', {
     orderBy: 'name',
     ascending: true,
+    excludeDeleted: true,
   })
 
   return { staff: rows, loading, error, mutate }

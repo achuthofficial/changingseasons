@@ -1,0 +1,106 @@
+-- Removes the email-forwarding side of notifications. The in-app bell and
+-- every trigger that feeds it stay exactly as they are — only the
+-- "also send this one as an email" flag goes away.
+--
+-- Run this ONLY on a database that already had supabase-email-notifications
+-- .sql.txt applied (that file has been deleted from the project). A fresh
+-- setup never creates the notify_email column in the first place and should
+-- skip this file entirely — it is harmless there either way.
+--
+-- BEFORE running this, delete the Database Webhook that pointed at the
+-- send-notification-email Edge Function (Database -> Webhooks), and delete
+-- the function itself (Edge Functions -> send-notification-email -> Delete).
+-- That is what actually stops the emails; this file only cleans up the
+-- schema behind it. The RESEND_API_KEY secret can be removed too.
+--
+-- Order of operations matters, same as every other migration here: redefine
+-- both functions so they no longer reference notify_email, THEN drop the
+-- column. Dropping it first would break every order insert and the nightly
+-- reminder job with "column notify_email does not exist".
+
+-- 1. New order created — back to bell-only.
+create or replace function public.notify_new_order()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_name text;
+begin
+  select name into v_customer_name from public.users where id = new.customer_id;
+
+  insert into public.notifications (message)
+  values (format(
+    'New order — ORD-%s for %s (₹%s)%s',
+    new.id,
+    coalesce(v_customer_name, 'Unknown customer'),
+    to_char(new.quoted_amount, 'FM999999999'),
+    case when new.due_date is not null then format(', due %s', new.due_date) else '' end
+  ));
+  return new;
+end;
+$$;
+
+-- 2. Daily reminders (due soon / overdue / upcoming trials) — back to
+-- bell-only. Identical to the version in
+-- supabase-notifications-schema.sql.txt; the dedupe columns
+-- (due_soon_notified_at / overdue_notified_at / reminder_sent_at) and the
+-- pg_cron job are untouched, so reminders keep working in the app.
+create or replace function public.send_daily_reminders()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r record;
+begin
+  for r in
+    select o.id, o.due_date, u.name as customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.order_status in ('Pending', 'In Progress', 'Ready')
+      and o.due_date is not null
+      and o.due_date between current_date and current_date + 3
+      and (o.due_soon_notified_at is null or o.due_soon_notified_at < current_date)
+  loop
+    insert into public.notifications (message)
+    values (format('Order #%s for %s is due on %s', r.id, r.customer_name, r.due_date));
+    update public.orders set due_soon_notified_at = current_date where id = r.id;
+  end loop;
+
+  for r in
+    select o.id, o.due_date, u.name as customer_name
+    from public.orders o
+    join public.users u on u.id = o.customer_id
+    where o.order_status in ('Pending', 'In Progress', 'Ready')
+      and o.due_date is not null
+      and o.due_date < current_date
+      and (o.overdue_notified_at is null or o.overdue_notified_at < current_date)
+  loop
+    insert into public.notifications (message)
+    values (format('Order #%s for %s is overdue (was due %s)', r.id, r.customer_name, r.due_date));
+    update public.orders set overdue_notified_at = current_date where id = r.id;
+  end loop;
+
+  for r in
+    select t.id, t.trial_date, t.order_id, u.name as customer_name
+    from public.order_trials t
+    join public.orders o on o.id = t.order_id
+    join public.users u on u.id = o.customer_id
+    where t.status = 'Scheduled'
+      and t.trial_date is not null
+      and t.trial_date between current_date and current_date + 1
+      and (t.reminder_sent_at is null or t.reminder_sent_at < current_date)
+  loop
+    insert into public.notifications (message)
+    values (format('Trial reminder — %s has a trial on %s for order #%s', r.customer_name, r.trial_date, r.order_id));
+    update public.order_trials set reminder_sent_at = current_date where id = r.id;
+  end loop;
+end;
+$$;
+
+-- 3. Now safe to drop. Idempotent — safe to re-run, and a no-op on a
+-- database that never had the column.
+alter table public.notifications drop column if exists notify_email;

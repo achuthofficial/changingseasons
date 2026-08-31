@@ -7,6 +7,7 @@ import {
   IconTransactions,
   IconWallet,
   IconHistory,
+  IconTrash,
   IconLeaf,
   IconX,
 } from '../components/Icons.jsx'
@@ -20,6 +21,7 @@ const links = [
   { to: '/transactions', label: 'Transactions', icon: IconTransactions },
   { to: '/expenses', label: 'Expenses', icon: IconWallet },
   { to: '/history', label: 'History', icon: IconHistory },
+  { to: '/recently-deleted', label: 'Recently Deleted', icon: IconTrash },
 ]
 
 export default function Sidebar({ open, onClose }) {

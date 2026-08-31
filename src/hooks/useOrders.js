@@ -9,6 +9,7 @@ export function useOrders() {
   const { rows, loading, error, mutate } = useRealtimeTable('orders', {
     orderBy: 'created_at',
     ascending: false,
+    excludeDeleted: true,
   })
 
   return { orders: rows, loading, error, mutate }

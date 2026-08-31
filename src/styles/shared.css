@@ -135,28 +135,6 @@
   z-index: 1;
 }
 
-.stat-delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  width: fit-content;
-  padding: 3px 8px 3px 6px;
-  border-radius: 999px;
-  position: relative;
-  z-index: 1;
-}
-
-.stat-delta.up {
-  color: var(--success-text);
-  background: var(--success-bg);
-}
-
-.stat-delta.down {
-  color: var(--danger-text);
-  background: var(--danger-bg);
-}
 
 /* badges */
 .badge {
@@ -185,6 +163,8 @@
 .badge-refunded, .badge-delivered, .badge-rescheduled { color: var(--neutral-text); background: var(--neutral-bg); }
 .badge-income { color: var(--success-text); background: var(--success-bg); }
 .badge-expense { color: var(--danger-text); background: var(--danger-bg); }
+/* Record types on the Recently Deleted screen. */
+.badge-customer, .badge-order, .badge-staff, .badge-transaction { color: var(--accent-text); background: var(--accent-bg); }
 
 /* tables */
 .table-wrap {
