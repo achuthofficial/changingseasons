@@ -236,7 +236,6 @@ export default function Orders() {
                           customerName: customer?.name,
                           orderId: o.id,
                           items: orderItems,
-                          order: o,
                         }),
                       )
                     : null

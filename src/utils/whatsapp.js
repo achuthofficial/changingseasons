@@ -1,6 +1,5 @@
 import { parsePhone } from '../data/countries.js'
 import { shop } from '../data/shop.js'
-import { formatINR } from './format.js'
 import { garmentLabel } from './orderItems.js'
 
 // WhatsApp's "click to chat" link — free, no API/account needed, but it can
@@ -83,24 +82,16 @@ export function buildWhatsAppLink(phone, message) {
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`
 }
 
-// The full "your order is ready" message, in English and then Telugu: what's
-// ready, the itemised garments, what's already been paid and what's still
-// owed at pickup, where to collect it, and who to call.
+// The "your order is ready" message: a greeting, what's ready, and the
+// itemised garments. Deliberately says nothing about money — the amounts
+// belong on the receipt, not in a notification the customer may read in
+// public or forward on.
 //
-// Both languages are always included — the shop's customers are mixed, and
-// picking one per customer would need a language field on `users` that
-// doesn't exist. The two blocks are kept whole and separated rather than
-// interleaved line by line, which is far easier to read in a chat.
-//
-// Everything is optional: an order with no items, no price, or no name on
-// file just drops that part of both blocks rather than printing an empty
-// heading or "₹0".
-export function orderReadyMessage({ customerName, orderId, items = [], order = {} }) {
+// Everything except the order number is optional: an order with no items or
+// no name on file drops that part rather than printing an empty heading.
+export function orderReadyMessage({ customerName, orderId, items = [] }) {
   const name = String(customerName ?? '').trim()
 
-  // Garment names are the shop's own catalogue terms and are stored in
-  // English, so the item list itself is identical in both blocks — only the
-  // heading above it changes.
   const itemLines = (items ?? [])
     .map((item) => {
       const label = garmentLabel(item)
@@ -110,47 +101,11 @@ export function orderReadyMessage({ customerName, orderId, items = [], order = {
     })
     .filter(Boolean)
 
-  const total = Number(order?.quoted_amount) || 0
-  const paid = Number(order?.advance_paid) || 0
-  const balance = total - paid
+  const lines = [`Hi ${name || 'there'},`, '']
+  lines.push(`Your order ORD-${orderId} is ready for pickup at ${shop.name}.`)
+  if (itemLines.length > 0) lines.push('', 'Your items:', ...itemLines)
+  lines.push('', `Any questions, please call us on ${shop.phone}.`)
+  lines.push('', `Thank you for choosing ${shop.name}!`)
 
-  const english = [`Hi ${name || 'there'},`, '']
-  english.push(`Your order ORD-${orderId} is ready for pickup at ${shop.name}.`)
-  if (itemLines.length > 0) english.push('', 'Your items:', ...itemLines)
-  if (total > 0) {
-    english.push('', `Total: ${formatINR(total)}`)
-    if (paid > 0) english.push(`Advance paid: ${formatINR(paid)}`)
-    // A balance of 0 (or negative, if they somehow overpaid) should read as
-    // settled rather than printing "Balance due: ₹0".
-    english.push(
-      balance > 0
-        ? `Balance due at pickup: ${formatINR(balance)}`
-        : 'Fully paid — nothing due at pickup.',
-    )
-  }
-  english.push('', 'Pickup address:', shop.address)
-  english.push('', `Any questions, please call us on ${shop.phone}.`)
-  english.push('', `Thank you for choosing ${shop.name}!`)
-
-  // "గారు" is the respectful suffix that goes after a customer's name; with
-  // no name on file the greeting stands on its own instead. The address
-  // stays in English — that's how it's written on the street and how a
-  // delivery app or maps search expects it.
-  const telugu = [name ? `నమస్కారం ${name} గారు,` : 'నమస్కారం,', '']
-  telugu.push(`మీ ఆర్డర్ ORD-${orderId} సిద్ధంగా ఉంది — ${shop.name} నుండి తీసుకోవచ్చు.`)
-  if (itemLines.length > 0) telugu.push('', 'మీ వస్తువులు:', ...itemLines)
-  if (total > 0) {
-    telugu.push('', `మొత్తం: ${formatINR(total)}`)
-    if (paid > 0) telugu.push(`అడ్వాన్స్ చెల్లించినది: ${formatINR(paid)}`)
-    telugu.push(
-      balance > 0
-        ? `తీసుకునేటప్పుడు చెల్లించవలసినది: ${formatINR(balance)}`
-        : 'పూర్తిగా చెల్లించారు — ఇంకా చెల్లించవలసినది ఏమీ లేదు.',
-    )
-  }
-  telugu.push('', 'చిరునామా:', shop.address)
-  telugu.push('', `ఏవైనా సందేహాలు ఉంటే ${shop.phone} కి కాల్ చేయండి.`)
-  telugu.push('', `${shop.name} ని ఎంచుకున్నందుకు ధన్యవాదాలు!`)
-
-  return [...english, '', '— — — — —', '', ...telugu].join('\n')
+  return lines.join('\n')
 }

@@ -160,7 +160,6 @@ export default function CustomerDetailModal({ customer, onClose }) {
                             customerName: customer.name,
                             orderId: o.id,
                             items: orderItems,
-                            order: o,
                           }),
                         )
                       : null

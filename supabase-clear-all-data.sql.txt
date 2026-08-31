@@ -13,5 +13,12 @@ truncate table
   public.order_items,
   public.orders,
   public.staff,
+  public.expenses,
   public.users
 restart identity cascade;
+
+-- Design photos and staff photos live in Storage, not in these tables, so
+-- nothing above touches them. After running this, use
+-- Profile menu -> "Clean Up Unused Images" in the app to remove the files
+-- the deleted rows were pointing at. (The automatic daily sweep would get
+-- them eventually, but it skips anything under an hour old.)
