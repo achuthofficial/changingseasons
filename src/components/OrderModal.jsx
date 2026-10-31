@@ -12,12 +12,22 @@ import PaymentModal from './PaymentModal.jsx'
 import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { itemsSummary } from '../utils/orderItems.js'
+import { localDateKey } from '../utils/dateOnly.js'
 import { buildStoragePath, removeStorageObject, ORDER_DESIGN_BUCKET } from '../utils/storageCleanup.js'
 import './OrderModal.css'
 
 const orderStatuses = ['Pending', 'In Progress', 'Ready', 'Delivered', 'Cancelled']
 const trialStatuses = ['Scheduled', 'Attended', 'Missed', 'Rescheduled']
 const paymentMethods = ['Cash', 'UPI', 'Card', 'Bank Transfer']
+
+// A booking date picked in the form becomes the order's created_at. The
+// current time of day is kept so orders booked on the same day still sort
+// in the order they were entered.
+function bookingTimestamp(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const now = new Date()
+  return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString()
+}
 
 let trialTempKey = 0
 let itemTempKey = 0
@@ -67,6 +77,9 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
   const [initialAdvanceAmount, setInitialAdvanceAmount] = useState('')
   const [initialAdvanceMethod, setInitialAdvanceMethod] = useState('Cash')
   const [showPayment, setShowPayment] = useState(false)
+  const todayKey = localDateKey(new Date())
+  const originalBookingDate = order?.created_at ? localDateKey(order.created_at) : todayKey
+  const [bookingDate, setBookingDate] = useState(originalBookingDate)
   const [dueDate, setDueDate] = useState(order?.due_date ?? '')
   const [designerInstructions, setDesignerInstructions] = useState(order?.designer_instructions ?? '')
   const [orderStatus, setOrderStatus] = useState(order?.order_status ?? 'Pending')
@@ -203,8 +216,15 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
       ? Boolean(newCustomerName.trim() && newCustomerPhone.trim())
       : Boolean(customerId)
 
+  // Only send created_at when the date actually moved, so an untouched
+  // order keeps its exact original timestamp.
+  const bookingChanged = Boolean(bookingDate) && bookingDate !== originalBookingDate
+  const bookingCreatedAt = bookingChanged ? bookingTimestamp(bookingDate) : null
+
   const isValid = Boolean(
     customerValid &&
+      Boolean(bookingDate) &&
+      bookingDate <= todayKey &&
       items.length > 0 &&
       items.every(
         (i) => i.garment_type && (i.garment_type !== 'Other' || (i.garment_type_other ?? '').trim()) && Number(i.quantity) > 0,
@@ -218,6 +238,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
   function previewOrder() {
     return {
       ...order,
+      ...(bookingCreatedAt ? { created_at: bookingCreatedAt } : {}),
       due_date: dueDate || null,
       designer_instructions: designerInstructions.trim() || null,
       order_status: orderStatus,
@@ -324,6 +345,7 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
       // advance) — editing an existing order never touches it, since
       // Record Payment is now the only path that changes it.
       ...(isEdit ? {} : { advance_paid: Number(initialAdvanceAmount) || 0 }),
+      ...(bookingCreatedAt ? { created_at: bookingCreatedAt } : {}),
       due_date: dueDate || null,
       designer_instructions: designerInstructions.trim() || null,
       order_status: orderStatus,
@@ -353,6 +375,9 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
         amount: Number(initialAdvanceAmount),
         method: initialAdvanceMethod,
         status: 'Completed',
+        // An advance taken on a back-dated booking was received that day,
+        // so it counts toward that day's (and month's) revenue.
+        ...(bookingCreatedAt ? { created_at: bookingCreatedAt } : {}),
       })
       if (txError) {
         advanceLogFailed = true
@@ -473,6 +498,9 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
                     autoFocus
                   />
                   <div className="order-customer-results">
+                    <button type="button" className="order-customer-add order-customer-add-top" onClick={() => setCustomerMode('new')}>
+                      + Add new customer
+                    </button>
                     {filteredCustomers.map((u) => (
                       <button type="button" key={u.id} className="order-customer-result" onClick={() => selectCustomer(u)}>
                         <span>{u.name}</span>
@@ -482,9 +510,6 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
                     {filteredCustomers.length === 0 && (
                       <p className="empty-row">No matching customers.</p>
                     )}
-                    <button type="button" className="order-customer-add" onClick={() => setCustomerMode('new')}>
-                      + Add new customer
-                    </button>
                   </div>
                 </div>
               )}
@@ -516,6 +541,23 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
                   </button>
                 </div>
               )}
+            </div>
+
+            <div className="modal-field-row">
+              <label className="modal-field">
+                <span>Booking date</span>
+                <input
+                  type="date"
+                  value={bookingDate}
+                  max={todayKey}
+                  onChange={(e) => setBookingDate(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="modal-field">
+                <span>Due date</span>
+                <input type="date" value={dueDate ?? ''} onChange={(e) => setDueDate(e.target.value)} />
+              </label>
             </div>
 
             <div className="modal-section-title">Items</div>
@@ -648,15 +690,9 @@ export default function OrderModal({ order, initialCustomer, onClose, onSave }) 
               </button>
             )}
 
-            <div className="modal-field-row">
-              <div className="order-balance-due">
-                <span>Balance due</span>
-                <strong>{formatINR(balanceDue)}</strong>
-              </div>
-              <label className="modal-field">
-                <span>Due date</span>
-                <input type="date" value={dueDate ?? ''} onChange={(e) => setDueDate(e.target.value)} />
-              </label>
+            <div className="order-balance-due">
+              <span>Balance due</span>
+              <strong>{formatINR(balanceDue)}</strong>
             </div>
 
             <label className="modal-field">

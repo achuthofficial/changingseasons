@@ -14,7 +14,7 @@ import { useTransactions } from '../hooks/useTransactions.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
-import { daysUntil } from '../utils/dateOnly.js'
+import { daysUntil, localDateKey } from '../utils/dateOnly.js'
 import { garmentLabel, itemsSummary } from '../utils/orderItems.js'
 import { buildWhatsAppLink, orderReadyMessage } from '../utils/whatsapp.js'
 import './Orders.css'
@@ -212,6 +212,7 @@ export default function Orders() {
                 <th>Customer</th>
                 <th>Garment</th>
                 <th>Trial</th>
+                <th>Booked</th>
                 <th>Due Date</th>
                 <th>Amount</th>
                 <th>Pending</th>
@@ -258,6 +259,7 @@ export default function Orders() {
                         <span className="empty-cell">—</span>
                       )}
                     </td>
+                    <td>{o.created_at ? localDateKey(o.created_at) : '—'}</td>
                     <td>{o.due_date ?? '—'}</td>
                     <td className="cell-amount">{formatINR(o.quoted_amount)}</td>
                     <td className="cell-amount">{formatINR(balance)}</td>
@@ -297,7 +299,7 @@ export default function Orders() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="empty-row">
+                  <td colSpan={10} className="empty-row">
                     {orders.length === 0 ? 'No orders yet.' : 'No orders match your filters.'}
                   </td>
                 </tr>

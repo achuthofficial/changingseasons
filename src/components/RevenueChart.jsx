@@ -121,9 +121,13 @@ export default function RevenueChart({ data, labels }) {
       )}
 
       <div className="revenue-chart-axis">
-        {labels.filter((_, i) => i % 2 === 0).map((l) => (
-          <span key={l}>{l}</span>
-        ))}
+        {/* At most ~8 labels whatever the range, so a 31-day month or a
+            multi-year span doesn't crowd the axis. */}
+        {labels
+          .filter((_, i) => i % Math.max(1, Math.ceil(labels.length / 8)) === 0)
+          .map((l, i) => (
+            <span key={`${l}-${i}`}>{l}</span>
+          ))}
       </div>
     </div>
   )
