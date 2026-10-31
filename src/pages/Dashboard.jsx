@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import StatCard from '../components/StatCard.jsx'
 import RevenueChart from '../components/RevenueChart.jsx'
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart.jsx'
+import PeriodSelect from '../components/PeriodSelect.jsx'
 import Badge from '../components/Badge.jsx'
 import { IconRupee, IconBag, IconUsers, IconCard, IconRefund, IconUserPlus, IconAlert } from '../components/Icons.jsx'
 import { useUsers } from '../hooks/useUsers.js'
@@ -13,7 +14,7 @@ import { useActivityFeed } from '../hooks/useActivityFeed.js'
 import { formatINR } from '../utils/format.js'
 import { daysUntil, localDateKey } from '../utils/dateOnly.js'
 import { itemsSummary } from '../utils/orderItems.js'
-import { periodOptions, periodRange, inRange, monthKey } from '../utils/period.js'
+import { periodRange, inRange, monthKey, overlapsRange } from '../utils/period.js'
 import './Dashboard.css'
 
 const OPEN_STATUSES = ['Pending', 'In Progress', 'Ready']
@@ -70,7 +71,6 @@ export default function Dashboard() {
   const recentEvents = events.slice(0, 5)
 
   const [period, setPeriod] = useState(readStoredPeriod)
-  const { presets: periodPresets, months: periodMonths } = useMemo(() => periodOptions(), [])
   const range = useMemo(() => periodRange(period), [period])
 
   function changePeriod(next) {
@@ -222,7 +222,9 @@ export default function Dashboard() {
         label: d.toLocaleDateString('en-US', { month: 'short' }),
         fullLabel: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         value: totals.get(key) ?? 0,
-        highlighted: highlightAll ? false : inRange(d, range),
+        highlighted: highlightAll
+          ? false
+          : overlapsRange(d, new Date(d.getFullYear(), d.getMonth() + 1, 1), range),
       }
     })
   }, [chartBounds, completedTx, range])
@@ -234,21 +236,10 @@ export default function Dashboard() {
           <h2 className="dash-filter-title">Overview</h2>
           <p className="dash-filter-sub">Showing figures for <strong>{range.label}</strong></p>
         </div>
-        <label className="dash-filter">
+        <div className="dash-filter">
           <span>Period</span>
-          <select value={period} onChange={(e) => changePeriod(e.target.value)}>
-            <optgroup label="Quick ranges">
-              {periodPresets.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Pick a month">
-              {periodMonths.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
+          <PeriodSelect value={period} onChange={changePeriod} />
+        </div>
       </div>
 
       <div className="stat-grid">

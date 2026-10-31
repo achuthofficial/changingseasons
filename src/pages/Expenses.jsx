@@ -3,6 +3,7 @@ import StatCard from '../components/StatCard.jsx'
 import Badge from '../components/Badge.jsx'
 import RowMenu from '../components/RowMenu.jsx'
 import ExpenseModal from '../components/ExpenseModal.jsx'
+import PeriodSelect from '../components/PeriodSelect.jsx'
 import { IconSearch, IconRupee, IconCard, IconWallet, IconRefund } from '../components/Icons.jsx'
 import { useExpenses } from '../hooks/useExpenses.js'
 import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
@@ -10,7 +11,7 @@ import { expenseCategories, incomeCategories } from '../data/expenseCategories.j
 import { supabase } from '../lib/supabaseClient.js'
 import { formatINR } from '../utils/format.js'
 import { parseDateOnly } from '../utils/dateOnly.js'
-import { periodOptions, periodRange, inRange } from '../utils/period.js'
+import { periodRange, inRange } from '../utils/period.js'
 import './Expenses.css'
 
 const tabs = ['All', 'Expense', 'Income']
@@ -23,7 +24,6 @@ export default function Expenses() {
   const [category, setCategory] = useState('All')
   const [period, setPeriod] = useState('this-month')
   const [modalEntry, setModalEntry] = useState(undefined)
-  const { presets: periodPresets, months: periodMonths } = useMemo(() => periodOptions(), [])
   const range = useMemo(() => periodRange(period), [period])
 
   const filtered = useMemo(() => {
@@ -111,18 +111,7 @@ export default function Expenses() {
               </button>
             ))}
           </div>
-          <select className="expenses-category-filter" value={period} onChange={(e) => setPeriod(e.target.value)}>
-            <optgroup label="Quick ranges">
-              {periodPresets.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Pick a month">
-              {periodMonths.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </optgroup>
-          </select>
+          <PeriodSelect value={period} onChange={setPeriod} selectClassName="expenses-category-filter" />
           <select className="expenses-category-filter" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="All">All categories</option>
             {allCategories.map((c) => (

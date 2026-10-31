@@ -52,6 +52,14 @@ export function periodRange(value, now = new Date()) {
     case 'all':
       return { start: null, end: null, label: 'All time' }
     default: {
+      const custom = parseCustom(value)
+      if (custom) {
+        const [from, to] = custom.from <= custom.to ? [custom.from, custom.to] : [custom.to, custom.from]
+        const start = dateFromKey(from)
+        const last = dateFromKey(to)
+        const end = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1)
+        return { start, end, label: `${dayLabel(start)} – ${dayLabel(last)}`, custom: { from, to } }
+      }
       const match = /^month:(\d{4})-(\d{2})$/.exec(value ?? '')
       if (match) {
         const start = startOfMonth(Number(match[1]), Number(match[2]) - 1)
@@ -64,6 +72,36 @@ export function periodRange(value, now = new Date()) {
       return periodRange('this-month', now)
     }
   }
+}
+
+// Custom ranges are encoded as "custom:YYYY-MM-DD:YYYY-MM-DD" (both days
+// inclusive) so the whole filter stays a single string value.
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/
+
+export function parseCustom(value) {
+  const parts = String(value ?? '').split(':')
+  if (parts[0] !== 'custom' || !DATE_KEY.test(parts[1] ?? '') || !DATE_KEY.test(parts[2] ?? '')) return null
+  return { from: parts[1], to: parts[2] }
+}
+
+export function customValue(from, to) {
+  return `custom:${from}:${to}`
+}
+
+function dateFromKey(key) {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function dayLabel(d) {
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// True when [start, end) shares any time with the range.
+export function overlapsRange(start, end, range) {
+  if (range.end && start.getTime() >= range.end.getTime()) return false
+  if (range.start && end.getTime() <= range.start.getTime()) return false
+  return true
 }
 
 export function inRange(dateLike, { start, end }) {
