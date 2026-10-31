@@ -5,6 +5,7 @@ import StatusMenu from '../components/StatusMenu.jsx'
 import OrderModal from '../components/OrderModal.jsx'
 import PaymentModal from '../components/PaymentModal.jsx'
 import { IconSearch, IconWhatsApp } from '../components/Icons.jsx'
+import PeriodSelect from '../components/PeriodSelect.jsx'
 import { useOrders } from '../hooks/useOrders.js'
 import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
 import { useUsers } from '../hooks/useUsers.js'
@@ -14,9 +15,10 @@ import { useTransactions } from '../hooks/useTransactions.js'
 import { supabase } from '../lib/supabaseClient.js'
 import { formatCustomerId, formatINR } from '../utils/format.js'
 import { generateCustomerReceiptPdf, generateTailorReceiptPdfs } from '../utils/generateReceiptPdf.js'
-import { daysUntil } from '../utils/dateOnly.js'
+import { daysUntil, localDateKey } from '../utils/dateOnly.js'
 import { garmentLabel, itemsSummary } from '../utils/orderItems.js'
 import { buildWhatsAppLink, orderReadyMessage } from '../utils/whatsapp.js'
+import { periodRange, inRange } from '../utils/period.js'
 import './Orders.css'
 
 const tabs = ['All', 'Pending', 'In Progress', 'Ready', 'Delivered', 'Cancelled']
@@ -34,6 +36,10 @@ export default function Orders() {
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('All')
   const [dueFilter, setDueFilter] = useState('none')
+  // Filters on booking date (created_at).
+  const [period, setPeriod] = useState('all')
+  const range = useMemo(() => periodRange(period), [period])
+  const isAllTime = !range.start && !range.end
   const [modalOrder, setModalOrder] = useState(undefined)
   const [paymentOrder, setPaymentOrder] = useState(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -95,9 +101,16 @@ export default function Orders() {
         (customer?.name ?? '').toLowerCase().includes(q) ||
         orderItems.some((i) => garmentLabel(i).toLowerCase().includes(q))
 
-      return matchesTab && matchesDue && matchesQuery
+      const matchesPeriod = isAllTime || inRange(o.created_at, range)
+
+      return matchesTab && matchesDue && matchesPeriod && matchesQuery
     })
-  }, [orders, tab, dueFilter, query, customerMap, itemsByOrder])
+  }, [orders, tab, dueFilter, query, customerMap, itemsByOrder, range, isAllTime])
+
+  const filteredValue = useMemo(
+    () => filtered.reduce((sum, o) => sum + Number(o.quoted_amount || 0), 0),
+    [filtered],
+  )
 
   // Soft delete — the order moves to Recently Deleted and can be restored
   // for RETENTION_MINUTES. A database trigger takes its linked transactions
@@ -202,7 +215,12 @@ export default function Orders() {
               </button>
             ))}
           </div>
+          <PeriodSelect value={period} onChange={setPeriod} selectClassName="toolbar-select" />
         </div>
+        <p className="toolbar-summary">
+          {filtered.length.toLocaleString('en-IN')} orders booked · {range.label} · Value{' '}
+          <strong>{formatINR(filteredValue)}</strong>
+        </p>
 
         <div className="table-wrap">
           <table className="data-table">
@@ -212,6 +230,7 @@ export default function Orders() {
                 <th>Customer</th>
                 <th>Garment</th>
                 <th>Trial</th>
+                <th>Booked</th>
                 <th>Due Date</th>
                 <th>Amount</th>
                 <th>Pending</th>
@@ -258,6 +277,7 @@ export default function Orders() {
                         <span className="empty-cell">—</span>
                       )}
                     </td>
+                    <td>{o.created_at ? localDateKey(o.created_at) : '—'}</td>
                     <td>{o.due_date ?? '—'}</td>
                     <td className="cell-amount">{formatINR(o.quoted_amount)}</td>
                     <td className="cell-amount">{formatINR(balance)}</td>
@@ -297,7 +317,7 @@ export default function Orders() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="empty-row">
+                  <td colSpan={10} className="empty-row">
                     {orders.length === 0 ? 'No orders yet.' : 'No orders match your filters.'}
                   </td>
                 </tr>

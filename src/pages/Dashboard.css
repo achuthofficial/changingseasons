@@ -94,3 +94,132 @@
     grid-template-columns: 1fr;
   }
 }
+
+.dash-filter-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dash-filter-title {
+  font-size: 18px;
+}
+
+.dash-filter-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.dash-filter-sub strong {
+  color: var(--ink);
+}
+
+.dash-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.dash-filter select {
+  border: 1px solid var(--border);
+  background: var(--bg-card, var(--white));
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  min-width: 190px;
+  outline: none;
+}
+
+.dash-filter select:focus {
+  border-color: var(--brand-400);
+}
+
+.monthly-chart {
+  padding: 18px 22px 0;
+}
+
+.monthly-chart-bars {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 200px;
+  overflow-x: auto;
+}
+
+.monthly-bar-col {
+  flex: 1 1 0;
+  min-width: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+}
+
+.monthly-bar-value {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  min-height: 14px;
+  white-space: nowrap;
+}
+
+.monthly-bar-track {
+  flex: 1;
+  width: 100%;
+  max-width: 44px;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 8px;
+  background: var(--border-soft, transparent);
+}
+
+.monthly-bar {
+  width: 100%;
+  border-radius: 8px;
+  background: var(--brand-400);
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.monthly-bar-col.is-highlighted .monthly-bar,
+.monthly-bar-col.is-hover .monthly-bar {
+  background: var(--brand-600);
+  opacity: 1;
+}
+
+.monthly-bar-col.is-highlighted .monthly-bar-value,
+.monthly-bar-col.is-highlighted .monthly-bar-label {
+  color: var(--ink);
+}
+
+.monthly-bar-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.monthly-chart-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft, var(--border));
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.monthly-chart-foot strong {
+  font-size: 15px;
+  color: var(--ink);
+}

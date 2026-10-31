@@ -1,0 +1,40 @@
+.period-select {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.period-custom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.period-custom label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.period-custom input {
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+.period-custom.is-active input {
+  border-color: var(--brand-400);
+}
+
+.period-custom input:focus {
+  border-color: var(--brand-600);
+}

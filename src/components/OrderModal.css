@@ -265,3 +265,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Always first in the list and pinned while the results scroll, so adding a
+   new customer never means scrolling past the existing ones. */
+.order-customer-add-top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.order-customer-add-top:hover {
+  /* Layered over the solid card colour so rows scrolling underneath don't
+     show through a translucent accent. */
+  background: linear-gradient(var(--accent-bg), var(--accent-bg)), var(--bg-card);
+}

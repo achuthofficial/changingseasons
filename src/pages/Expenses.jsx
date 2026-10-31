@@ -3,6 +3,7 @@ import StatCard from '../components/StatCard.jsx'
 import Badge from '../components/Badge.jsx'
 import RowMenu from '../components/RowMenu.jsx'
 import ExpenseModal from '../components/ExpenseModal.jsx'
+import PeriodSelect from '../components/PeriodSelect.jsx'
 import { IconSearch, IconRupee, IconCard, IconWallet, IconRefund } from '../components/Icons.jsx'
 import { useExpenses } from '../hooks/useExpenses.js'
 import { RETENTION_MINUTES } from '../hooks/useDeletedRecords.js'
@@ -10,68 +11,48 @@ import { expenseCategories, incomeCategories } from '../data/expenseCategories.j
 import { supabase } from '../lib/supabaseClient.js'
 import { formatINR } from '../utils/format.js'
 import { parseDateOnly } from '../utils/dateOnly.js'
+import { periodRange, inRange } from '../utils/period.js'
 import './Expenses.css'
 
 const tabs = ['All', 'Expense', 'Income']
 const allCategories = [...expenseCategories, ...incomeCategories]
-
-function isToday(dateStr) {
-  if (!dateStr) return false
-  const d = parseDateOnly(dateStr)
-  const today = new Date()
-  return (
-    d.getFullYear() === today.getFullYear() &&
-    d.getMonth() === today.getMonth() &&
-    d.getDate() === today.getDate()
-  )
-}
-
-function isThisMonth(dateStr) {
-  if (!dateStr) return false
-  const d = parseDateOnly(dateStr)
-  const today = new Date()
-  return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth()
-}
 
 export default function Expenses() {
   const { expenses, mutate } = useExpenses()
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('All')
   const [category, setCategory] = useState('All')
+  const [period, setPeriod] = useState('this-month')
   const [modalEntry, setModalEntry] = useState(undefined)
-
-  const stats = useMemo(() => {
-    let todayExpense = 0
-    let monthExpense = 0
-    let monthIncome = 0
-
-    for (const e of expenses) {
-      const amount = Number(e.amount) || 0
-      if (e.entry_type === 'Expense' && isToday(e.entry_date)) todayExpense += amount
-      if (e.entry_type === 'Expense' && isThisMonth(e.entry_date)) monthExpense += amount
-      if (e.entry_type === 'Income' && isThisMonth(e.entry_date)) monthIncome += amount
-    }
-
-    return {
-      todayExpense,
-      monthExpense,
-      monthIncome,
-      netMonth: monthIncome - monthExpense,
-    }
-  }, [expenses])
+  const range = useMemo(() => periodRange(period), [period])
 
   const filtered = useMemo(() => {
     return expenses.filter((e) => {
       const matchesTab = tab === 'All' || e.entry_type === tab
       const matchesCategory = category === 'All' || e.category === category
+      // entry_date is a plain date column, so parse it as local midnight.
+      const matchesPeriod = e.entry_date ? inRange(parseDateOnly(e.entry_date), range) : !range.start && !range.end
       const q = query.trim().toLowerCase()
       const matchesQuery =
         !q ||
         e.category.toLowerCase().includes(q) ||
         (e.notes ?? '').toLowerCase().includes(q)
-      return matchesTab && matchesCategory && matchesQuery
+      return matchesTab && matchesCategory && matchesPeriod && matchesQuery
     })
-  }, [expenses, tab, category, query])
+  }, [expenses, tab, category, range, query])
+
+  // The KPI cards summarise exactly the rows the table is showing, so
+  // every filter (period, type tab, category, search) moves them too.
+  const stats = useMemo(() => {
+    let expense = 0
+    let income = 0
+    for (const e of filtered) {
+      const amount = Number(e.amount) || 0
+      if (e.entry_type === 'Expense') expense += amount
+      if (e.entry_type === 'Income') income += amount
+    }
+    return { expense, income, net: income - expense, count: filtered.length }
+  }, [filtered])
 
   async function handleDelete(entry) {
     const ok = window.confirm(
@@ -102,10 +83,10 @@ export default function Expenses() {
       </div>
 
       <div className="stat-grid">
-        <StatCard icon={IconRupee} label="Today's Expenses" value={formatINR(stats.todayExpense)} />
-        <StatCard icon={IconCard} label="This Month's Expenses" value={formatINR(stats.monthExpense)} />
-        <StatCard icon={IconWallet} label="This Month's Other Income" value={formatINR(stats.monthIncome)} />
-        <StatCard icon={IconRefund} label="Net This Month" value={formatINR(stats.netMonth)} />
+        <StatCard icon={IconCard} label={`Expenses · ${range.label}`} value={formatINR(stats.expense)} />
+        <StatCard icon={IconWallet} label={`Other Income · ${range.label}`} value={formatINR(stats.income)} />
+        <StatCard icon={IconRefund} label={`Net · ${range.label}`} value={formatINR(stats.net)} />
+        <StatCard icon={IconRupee} label="Entries" value={stats.count.toLocaleString('en-IN')} />
       </div>
 
       <section className="card">
@@ -130,6 +111,7 @@ export default function Expenses() {
               </button>
             ))}
           </div>
+          <PeriodSelect value={period} onChange={setPeriod} selectClassName="expenses-category-filter" />
           <select className="expenses-category-filter" value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="All">All categories</option>
             {allCategories.map((c) => (
