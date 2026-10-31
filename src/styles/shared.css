@@ -563,3 +563,30 @@ table.data-table {
     flex: 1 1 auto;
   }
 }
+
+/* Select used inside a page toolbar (e.g. the date filter). */
+.toolbar-select {
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+}
+
+.toolbar-select:focus {
+  border-color: var(--brand-400);
+}
+
+/* One-line count / total of whatever the toolbar filters are showing. */
+.toolbar-summary {
+  padding: 10px 22px 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.toolbar-summary strong {
+  color: var(--ink);
+}

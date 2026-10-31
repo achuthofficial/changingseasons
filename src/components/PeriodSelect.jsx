@@ -1,37 +1,49 @@
 import { useMemo } from 'react'
-import { periodOptions, parseCustom, customValue } from '../utils/period.js'
+import { periodOptions, periodRange, customValue } from '../utils/period.js'
 import { localDateKey } from '../utils/dateOnly.js'
 import './PeriodSelect.css'
 
-// The period filter shared by the Dashboard and Expenses pages: quick
-// ranges, any of the last 12 months, or a custom From–To range.
+// The date filter shared by the Dashboard, Orders, Transactions and
+// Expenses pages. The From / To boxes are always on screen: they show the
+// dates of whichever quick range is picked, and typing any date there
+// switches the filter to that custom range (both days inclusive).
 export default function PeriodSelect({ value, onChange, selectClassName = '' }) {
   const { presets, months } = useMemo(() => periodOptions(), [])
-  const custom = parseCustom(value)
+  const range = useMemo(() => periodRange(value), [value])
   const today = localDateKey(new Date())
 
-  function handleSelect(next) {
-    if (next === 'custom') {
-      // Start from the current month so far; the admin then adjusts.
-      const now = new Date()
-      onChange(customValue(localDateKey(new Date(now.getFullYear(), now.getMonth(), 1)), today))
-      return
-    }
-    onChange(next)
+  const isCustom = Boolean(range.custom)
+  // The dates the current selection covers, as shown in the boxes.
+  const from = range.start ? localDateKey(range.start) : ''
+  const to = range.end ? localDateKey(new Date(range.end.getTime() - 1)) : ''
+
+  function setFrom(next) {
+    if (!next) return
+    onChange(customValue(next, to && to >= next ? to : today))
+  }
+
+  function setTo(next) {
+    if (!next) return
+    onChange(customValue(from && from <= next ? from : next, next))
   }
 
   return (
     <div className="period-select">
       <select
         className={selectClassName}
-        value={custom ? 'custom' : value}
-        onChange={(e) => handleSelect(e.target.value)}
+        value={isCustom ? 'custom' : value}
+        onChange={(e) => {
+          // Choosing "Custom dates" keeps the dates already showing, so
+          // the admin just edits From / To from there.
+          if (e.target.value === 'custom') onChange(customValue(from || today, to || today))
+          else onChange(e.target.value)
+        }}
       >
         <optgroup label="Quick ranges">
           {presets.map((p) => (
             <option key={p.value} value={p.value}>{p.label}</option>
           ))}
-          <option value="custom">Custom range…</option>
+          <option value="custom">Custom dates</option>
         </optgroup>
         <optgroup label="Pick a month">
           {months.map((m) => (
@@ -40,29 +52,26 @@ export default function PeriodSelect({ value, onChange, selectClassName = '' }) 
         </optgroup>
       </select>
 
-      {custom && (
-        <div className="period-custom">
-          <label>
-            <span>From</span>
-            <input
-              type="date"
-              value={custom.from}
-              max={custom.to}
-              onChange={(e) => e.target.value && onChange(customValue(e.target.value, custom.to))}
-            />
-          </label>
-          <label>
-            <span>To</span>
-            <input
-              type="date"
-              value={custom.to}
-              min={custom.from}
-              max={today}
-              onChange={(e) => e.target.value && onChange(customValue(custom.from, e.target.value))}
-            />
-          </label>
-        </div>
-      )}
+      <div className={`period-custom ${isCustom ? 'is-active' : ''}`}>
+        <label>
+          <span>From</span>
+          <input
+            type="date"
+            value={from}
+            max={to || today}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label>
+          <span>To</span>
+          <input
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
+      </div>
     </div>
   )
 }
